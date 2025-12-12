@@ -47,6 +47,9 @@ private:
 	class UInputAction* LookAction;
 
 	UPROPERTY(VisibleAnywhere, Category = "Input")
+	class UInputAction* JumpAction;
+
+	UPROPERTY(VisibleAnywhere, Category = "Input")
 	float mouseSpeed = 30;
 
 	void Move(const FInputActionValue& Value);
