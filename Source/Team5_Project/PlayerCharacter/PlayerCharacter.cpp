@@ -16,7 +16,7 @@ APlayerCharacter::APlayerCharacter()
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	ConstructorHelpers::FObjectFinder<USkeletalMesh>PlayerMesh(TEXT("/Script/Engine.SkeletalMesh'/Game/KNC_Chatacter/Character/Mannequin_UE4/Meshes/SK_Mannequin.SK_Mannequin'"));
+	ConstructorHelpers::FObjectFinder<USkeletalMesh>PlayerMesh(TEXT("/Script/Engine.SkeletalMesh'/Game/KNC_Chatacter/Character/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple'"));
 
 	if (PlayerMesh.Succeeded())
 	{
@@ -31,11 +31,14 @@ APlayerCharacter::APlayerCharacter()
 		SpringArm->SetWorldLocation(FVector(0, 0, 55));
 		SpringArm->TargetArmLength = 150;
 		SpringArm->SocketOffset = FVector(0, 50, 0);
+
+		SpringArm->bUsePawnControlRotation = true;
 	}
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	if (Camera)
 	{
 		Camera->SetupAttachment(SpringArm);
+		Camera->bUsePawnControlRotation = false;
 	}
 
 	static ConstructorHelpers::FObjectFinder<UInputMappingContext> InputContext(TEXT("/Script/EnhancedInput.InputMappingContext'/Game/KNC_Chatacter/Input/IMC_DefaultInput.IMC_DefaultInput'"));
@@ -54,6 +57,12 @@ APlayerCharacter::APlayerCharacter()
 	if (InputContext.Succeeded())
 	{
 		LookAction = InputLook.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputJump(TEXT("/Script/EnhancedInput.InputAction'/Game/KNC_Chatacter/Input/IA_Jump.IA_Jump'"));
+	if (InputJump.Succeeded())
+	{
+		JumpAction = InputJump.Object;
 	}
 }
 
@@ -89,6 +98,9 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 	EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Move);
 	EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Look);
+
+	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
+	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 }
 
 void APlayerCharacter::Move(const FInputActionValue& Value)
@@ -112,4 +124,3 @@ void APlayerCharacter::Look(const FInputActionValue& Value)
 	AddControllerPitchInput(LookAxisVector.Y * GetWorld()->DeltaRealTimeSeconds * mouseSpeed);
 	AddControllerYawInput(LookAxisVector.X * GetWorld()->DeltaRealTimeSeconds * mouseSpeed);
 }
-
