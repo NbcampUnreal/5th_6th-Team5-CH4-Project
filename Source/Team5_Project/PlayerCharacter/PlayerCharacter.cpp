@@ -18,7 +18,7 @@ APlayerCharacter::APlayerCharacter()
 
 	bUseControllerRotationYaw = false;
 
-	ConstructorHelpers::FObjectFinder<USkeletalMesh>PlayerMesh(TEXT("/Script/Engine.SkeletalMesh'/Game/KNC_Chatacter/Character/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple'"));
+	ConstructorHelpers::FObjectFinder<USkeletalMesh>PlayerMesh(TEXT("Script/Engine.SkeletalMesh'/Game/KNC_Chatacter/Character/Animations/Ch09_nonPBR.Ch09_nonPBR'"));
 
 	if (PlayerMesh.Succeeded())
 	{
