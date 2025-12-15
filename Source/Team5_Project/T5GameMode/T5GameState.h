@@ -1,4 +1,4 @@
-// T5GameMode.h
+// T5GameState.h
 
 #pragma once
 
@@ -33,8 +33,12 @@ public:
 	// 현재 매치 상태
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "GameData")
 	EMatchState CurrentMatchState;
-
-	// 남은 시간 (초 단위)
+	
+	// [UI 연동용] 남은 시간 (초)
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "GameData")
 	int32 RemainingTime;
+
+	// [UI 연동용] 남은 도망자 수
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "GameData")
+	int32 SurvivorCount;
 };

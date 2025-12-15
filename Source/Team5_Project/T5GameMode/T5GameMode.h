@@ -1,27 +1,28 @@
-// T5GameMode.h
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "T5GameMode.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class TEAM5_PROJECT_API AT5GameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 
 public:
-	// 생성자 선언
 	AT5GameMode();
-	
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 
-	// 게임 시작 시 술래 정하기
-    UFUNCTION(BlueprintCallable, Category = "GameLogic")
-    void StartGameMatch();
-	
+	void StartCountdown();
+	void ProcessAttack(AController* Attacker, AActor* VictimActor);
+
+protected:
+	void OnCountdownTick();
+	void RealStartMatch();
+
+private:
+	bool bIsGameStarted;
+	int32 CurrentCountdown;
+	FTimerHandle TimerHandle_LobbyWait; // 접속 대기 타이머
+	FTimerHandle TimerHandle_Countdown; // 3,2,1 카운트다운 타이머
 };
