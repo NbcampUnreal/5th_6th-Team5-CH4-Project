@@ -1,9 +1,12 @@
 #include "AI/Team5_AICharacter.h"
 
+#include "Team5_DamageTakenComponent.h"
+
 ATeam5_AICharacter::ATeam5_AICharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	AI_HP =	AI_MaxHP;
+	
+	DamageTakenComponent = CreateDefaultSubobject<UTeam5_DamageTakenComponent>("DamageTakenComponent");
 }
 
 void ATeam5_AICharacter::BeginPlay()

@@ -16,12 +16,15 @@ APlayerCharacter::APlayerCharacter()
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	ConstructorHelpers::FObjectFinder<USkeletalMesh>PlayerMesh(TEXT("/Script/Engine.SkeletalMesh'/Game/KNC_Chatacter/Character/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple'"));
+	bUseControllerRotationYaw = false;
+
+	ConstructorHelpers::FObjectFinder<USkeletalMesh>PlayerMesh(TEXT("Script/Engine.SkeletalMesh'/Game/KNC_Chatacter/Character/Animations/Ch09_nonPBR.Ch09_nonPBR'"));
 
 	if (PlayerMesh.Succeeded())
 	{
 		GetMesh()->SetSkeletalMesh(PlayerMesh.Object);
-		GetMesh()->SetWorldLocationAndRotation(FVector(0, 0, -90),FRotator(0, -90, 0));
+		GetMesh()->SetRelativeLocationAndRotation(FVector(0, 0, -90), FRotator(0, -90, 0));
+		GetMesh()->SetUsingAbsoluteRotation(false);
 	}
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -48,13 +51,13 @@ APlayerCharacter::APlayerCharacter()
 	}
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> InputMove(TEXT("/Script/EnhancedInput.InputAction'/Game/KNC_Chatacter/Input/IA_Move.IA_Move'"));
-	if (InputContext.Succeeded())
+	if (InputMove.Succeeded())
 	{
 		MoveAction = InputMove.Object;
 	}
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> InputLook(TEXT("/Script/EnhancedInput.InputAction'/Game/KNC_Chatacter/Input/IA_Look.IA_Look'"));
-	if (InputContext.Succeeded())
+	if (InputLook.Succeeded())
 	{
 		LookAction = InputLook.Object;
 	}
@@ -63,6 +66,12 @@ APlayerCharacter::APlayerCharacter()
 	if (InputJump.Succeeded())
 	{
 		JumpAction = InputJump.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputAttack(TEXT("/Script/EnhancedInput.InputAction'/Game/KNC_Chatacter/Input/IA_Attack.IA_Attack'"));
+	if (InputAttack.Succeeded())
+	{
+		AttackAction = InputAttack.Object;
 	}
 }
 
@@ -79,6 +88,15 @@ void APlayerCharacter::BeginPlay()
 		}
 	}
 
+	auto* MoveComp = GetCharacterMovement();
+	if (MoveComp)
+	{
+		MoveComp->bOrientRotationToMovement = false;
+		MoveComp->bUseControllerDesiredRotation = false;
+		MoveComp->RotationRate = FRotator(0.f, 0.f, 0.f);
+	}
+
+
 	GetCharacterMovement()->MaxWalkSpeed = 300;
 }
 
@@ -87,6 +105,10 @@ void APlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	if (GetCharacterMovement())
+	{
+		bIsFalling = GetCharacterMovement()->IsFalling();
+	}
 }
 
 // Called to bind functionality to input
@@ -105,9 +127,12 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 void APlayerCharacter::Move(const FInputActionValue& Value)
 {
-	const FVector2D Movement = Value.Get<FVector2D>();
+	if (!Controller) return;
 
-	const FRotator ControlRot = Controller ? Controller->GetControlRotation() : FRotator::ZeroRotator;
+	const FVector2D Movement = Value.Get<FVector2D>();
+	if (Movement.IsNearlyZero()) return;
+
+	const FRotator ControlRot = Controller->GetControlRotation();
 	const FRotator YawOnly(0.f, ControlRot.Yaw, 0.f);
 
 	const FVector Forward = UKismetMathLibrary::GetForwardVector(YawOnly);
@@ -115,6 +140,23 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 
 	AddMovementInput(Forward, Movement.Y);
 	AddMovementInput(Right, Movement.X);
+
+	const FVector MoveDir = (Forward * Movement.Y + Right * Movement.X).GetSafeNormal();
+
+	float TargetYaw = MoveDir.Rotation().Yaw;
+
+	const FRotator CurrentRot = GetActorRotation();
+	const FRotator TargetRot(0.f, TargetYaw, 0.f);
+
+	const FRotator NewRot = FMath::RInterpTo(
+		CurrentRot,
+		TargetRot,
+		GetWorld()->GetDeltaSeconds(),
+		12.f
+	);
+
+	SetActorRotation(NewRot);
+	GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 }
 
 void APlayerCharacter::Look(const FInputActionValue& Value)
