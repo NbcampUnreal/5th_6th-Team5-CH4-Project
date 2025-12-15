@@ -2,7 +2,7 @@
 #include "T5PlayerController.h"
 #include "T5GameState.h"
 #include "T5PlayerState.h"
-#include "T5HUD.h"
+// #include "T5HUD.h"
 #include "EngineUtils.h"
 
 AT5GameMode::AT5GameMode()
@@ -10,7 +10,7 @@ AT5GameMode::AT5GameMode()
     GameStateClass = AT5GameState::StaticClass();
     PlayerStateClass = AT5PlayerState::StaticClass();
     PlayerControllerClass = AT5PlayerController::StaticClass();
-    HUDClass = AT5HUD::StaticClass();
+    // HUDClass = AT5HUD::StaticClass();
     
     static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter"));
     if (PlayerPawnBPClass.Class != NULL) DefaultPawnClass = PlayerPawnBPClass.Class;
