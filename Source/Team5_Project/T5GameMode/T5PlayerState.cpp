@@ -52,7 +52,7 @@ void AT5PlayerState::ApplyDamage(float Amount)
             CurrentHP = 0.0f;
         }
 
-        // 로그 확인용
-        UE_LOG(LogTemp, Warning, TEXT("[HP] %s 체력 감소: %.1f (남은 체력: %.1f)"), *GetPlayerName(), Amount, CurrentHP);
+        // [디버그] 로그 확인용
+        // UE_LOG(LogTemp, Warning, TEXT("[HP] %s 체력 감소: %.1f (남은 체력: %.1f)"), *GetPlayerName(), Amount, CurrentHP);
     }
 }

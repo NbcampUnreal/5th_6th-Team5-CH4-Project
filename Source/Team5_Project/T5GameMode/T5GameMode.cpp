@@ -2,7 +2,7 @@
 #include "T5PlayerController.h"
 #include "T5GameState.h"
 #include "T5PlayerState.h"
-#include "T5HUD.h"
+// #include "T5HUD.h"
 #include "EngineUtils.h"
 
 AT5GameMode::AT5GameMode()
@@ -10,7 +10,7 @@ AT5GameMode::AT5GameMode()
     GameStateClass = AT5GameState::StaticClass();
     PlayerStateClass = AT5PlayerState::StaticClass();
     PlayerControllerClass = AT5PlayerController::StaticClass();
-    HUDClass = AT5HUD::StaticClass();
+    // HUDClass = AT5HUD::StaticClass();
     
     static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter"));
     if (PlayerPawnBPClass.Class != NULL) DefaultPawnClass = PlayerPawnBPClass.Class;
@@ -24,12 +24,15 @@ void AT5GameMode::PostLogin(APlayerController* NewPlayer)
     
     if (bIsGameStarted)
     {
+        /* [테스트 코드] 게임 중 난입 시 메시지 출력
         if (AT5PlayerController* PC = Cast<AT5PlayerController>(NewPlayer))
             PC->Client_PrivateMessage(TEXT("게임 진행 중입니다."), FColor::Red, 100);
+        */
         return;
     }
 
-    // 접속 알림 (모두에게)
+    // [디버그] 접속 알림 (모두에게)
+    /*
     if (AT5PlayerState* NewPS = NewPlayer->GetPlayerState<AT5PlayerState>())
     {
         FString JoinMsg = FString::Printf(TEXT(">>> %s 님 접속! <<<"), *NewPS->GetPlayerName());
@@ -39,6 +42,7 @@ void AT5GameMode::PostLogin(APlayerController* NewPlayer)
                 PC->Client_PrivateMessage(JoinMsg, FColor::Cyan, -1); // -1: 로그처럼 쌓이게
         }
     }
+    */
 
     // 누군가 들어올 때마다 타이머 리셋
     // "마지막 사람이 들어오고 나서 2초 뒤"에 카운트다운 시작
@@ -48,12 +52,14 @@ void AT5GameMode::PostLogin(APlayerController* NewPlayer)
     int32 NumPlayers = GetNumPlayers();
     if (NumPlayers >= 2) // 최소 2명은 있어야 게임 가능
     {
+        /* [디버그] 인원 확인 메시지
         FString WaitMsg = FString::Printf(TEXT("현재 %d명. 잠시 후 시작합니다..."), NumPlayers);
         for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
         {
              if (AT5PlayerController* PC = Cast<AT5PlayerController>(It->Get()))
                 PC->Client_PrivateMessage(WaitMsg, FColor::Yellow, 100);
         }
+        */
 
         // 2초 대기 후 StartCountdown 호출
         GetWorldTimerManager().SetTimer(TimerHandle_LobbyWait, this, &AT5GameMode::StartCountdown, 2.0f, false);
@@ -73,6 +79,7 @@ void AT5GameMode::OnCountdownTick()
 {
     if (CurrentCountdown > 0)
     {
+        /* [디버그] 카운트다운 메시지 출력
         FString CountMsg = FString::Printf(TEXT("게임 시작 %d초 전..."), CurrentCountdown);
         // 모두에게 카운트다운 전송
         for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
@@ -80,6 +87,7 @@ void AT5GameMode::OnCountdownTick()
             if (AT5PlayerController* PC = Cast<AT5PlayerController>(It->Get()))
                 PC->Client_PrivateMessage(CountMsg, FColor::Yellow, 100);
         }
+        */
         CurrentCountdown--;
     }
     else
@@ -91,6 +99,8 @@ void AT5GameMode::OnCountdownTick()
 
 void AT5GameMode::RealStartMatch()
 {
+    // [테스트 코드] 자동 역할 분배 로직 (다른 팀원 작업 전 임시 사용)
+    /*
     // 모든 플레이어 수집
     TArray<AT5PlayerController*> AllPlayers;
     for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
@@ -127,6 +137,7 @@ void AT5GameMode::RealStartMatch()
             PC->Client_SetRole(EPlayerRole::Animal); // 도망자 통보
         }
     }
+    */
 }
 
 void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
@@ -141,14 +152,19 @@ void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
 
     if (!AttackerPS || AttackerPS->CurrentRole != EPlayerRole::Hunter)
     {
-        AttackerPC->Client_PrivateMessage(TEXT("술래만 공격할 수 있습니다!"), FColor::Red, 100);
+        // [디버그] 공격 실패 메시지
+        // AttackerPC->Client_PrivateMessage(TEXT("술래만 공격할 수 있습니다!"), FColor::Red, 100);
         return;
     }
 
     if (VictimPS)
     {
         AttackerPS->AddScore(1.0f);
+        
+        // [디버그] 검거 성공/사망 메시지
+        /*
         AttackerPC->Client_PrivateMessage(TEXT("[검거 성공!]"), FColor::Green, 100);
         if (VictimPC) VictimPC->Client_PrivateMessage(TEXT("[사망] 술래에게 잡혔습니다!"), FColor::Red, 100);
+        */
     }
 }

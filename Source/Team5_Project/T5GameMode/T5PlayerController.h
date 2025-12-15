@@ -19,7 +19,9 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_PrivateMessage(const FString& Message, FColor Color, int32 MsgKey = -1);
 
-	// 치트 등 기존 함수 유지
+	// [테스트 코드] 치트 기능 (임시 비활성화)
+	/*
 	UFUNCTION(Exec) void CheatHit();
 	UFUNCTION(Server, Reliable) void Server_CheatHit();
+	*/
 };

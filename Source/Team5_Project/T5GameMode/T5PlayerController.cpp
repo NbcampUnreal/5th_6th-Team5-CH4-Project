@@ -21,6 +21,7 @@ void AT5PlayerController::Client_SetRole_Implementation(EPlayerRole NewRole)
     APawn* MyPawn = GetPawn();
     if (!MyPawn) return;
 
+    /* [디버그] 역할 배정 시 로그 및 화면 출력 준비 로직 (비활성화)
     int32 MyId = PS->GetPlayerId();
     FString RoleMsg;
     FColor MsgColor;
@@ -40,15 +41,20 @@ void AT5PlayerController::Client_SetRole_Implementation(EPlayerRole NewRole)
     {
         UE_LOG(LogTemp, Log, TEXT("내 역할이 %d로 설정되었습니다."), (int32)NewRole);
     }
+    */
 }
 
 // 공지사항(접속, 카운트다운) 출력용
 void AT5PlayerController::Client_PrivateMessage_Implementation(const FString& Message, FColor Color, int32 MsgKey)
 {
     if (!IsLocalController()) return;
-    if (GEngine) GEngine->AddOnScreenDebugMessage(MsgKey, 5.0f, Color, Message);
+    
+    // [디버그] GEngine 화면 메시지 출력 비활성화
+    // if (GEngine) GEngine->AddOnScreenDebugMessage(MsgKey, 5.0f, Color, Message);
 }
 
+// [테스트 코드] 치트 구현부 비활성화
+/*
 void AT5PlayerController::CheatHit() { Server_CheatHit(); }
 void AT5PlayerController::Server_CheatHit_Implementation()
 {
@@ -63,3 +69,4 @@ void AT5PlayerController::Server_CheatHit_Implementation()
         if (Victim) GM->ProcessAttack(this, Victim);
     }
 }
+*/
