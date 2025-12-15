@@ -1,38 +1,44 @@
-// T5PlayerState.h
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerState.h"
 #include "T5PlayerState.generated.h"
 
-/**
- * 
- */
-
-// 역할 구분
 UENUM(BlueprintType)
 enum class EPlayerRole : uint8
 {
-	None,
-	Hunter,  // 술래
-	Animal   // 도망자
+    Waiting,
+    Hunter,
+    Animal
 };
-
 
 UCLASS()
 class TEAM5_PROJECT_API AT5PlayerState : public APlayerState
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
+    AT5PlayerState();
     
-	AT5PlayerState();
+    UFUNCTION(BlueprintCallable)
+    void SetPlayerRole(EPlayerRole NewRole);
 
-	// 리플리케이션
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    UFUNCTION(BlueprintPure)
+    EPlayerRole GetPlayerRole() const { return CurrentRole; }
 
-	// 역할 변수 선언 (서버 -> 클라 동기화)
-	UPROPERTY(Replicated, BlueprintReadOnly, Category = "GameData")
-	EPlayerRole CurrentRole;
+    void AddScore(float ScoreToAdd);
+    void ApplyDamage(float Amount);
+
+public:
+    UPROPERTY(ReplicatedUsing = OnRep_CurrentRole, BlueprintReadOnly)
+    EPlayerRole CurrentRole;
+
+    // [핵심] HP 변수
+    UPROPERTY(Replicated, BlueprintReadOnly)
+    float CurrentHP;
+
+protected:
+    UFUNCTION()
+    void OnRep_CurrentRole();
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

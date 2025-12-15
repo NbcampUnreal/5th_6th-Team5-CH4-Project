@@ -1,7 +1,8 @@
-// T5GameMode.cpp
+// T5GameState.cpp
 
 #include "T5GameMode/T5GameState.h"
 #include "Net/UnrealNetwork.h"
+#include "PlayerCharacter/PlayerCharacter.h"
 
 AT5GameState::AT5GameState()
 {
@@ -14,7 +15,8 @@ void AT5GameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    // 변수 2개 동기화 등록
+    // 동기화 등록
     DOREPLIFETIME(AT5GameState, CurrentMatchState);
     DOREPLIFETIME(AT5GameState, RemainingTime);
+    DOREPLIFETIME(AT5GameState, SurvivorCount); 
 }
