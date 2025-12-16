@@ -2,15 +2,14 @@
 #include "T5PlayerController.h"
 #include "T5GameState.h"
 #include "T5PlayerState.h"
-// #include "T5HUD.h"
 #include "EngineUtils.h"
+#include "Kismet/GameplayStatics.h"
 
 AT5GameMode::AT5GameMode()
 {
     GameStateClass = AT5GameState::StaticClass();
     PlayerStateClass = AT5PlayerState::StaticClass();
     PlayerControllerClass = AT5PlayerController::StaticClass();
-    // HUDClass = AT5HUD::StaticClass();
     
     static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter"));
     if (PlayerPawnBPClass.Class != NULL) DefaultPawnClass = PlayerPawnBPClass.Class;
@@ -24,7 +23,7 @@ void AT5GameMode::PostLogin(APlayerController* NewPlayer)
     
     if (bIsGameStarted)
     {
-        /* [테스트 코드] 게임 중 난입 시 메시지 출력
+        /* [테스트 코드] 게임 중 난입 차단 메시지
         if (AT5PlayerController* PC = Cast<AT5PlayerController>(NewPlayer))
             PC->Client_PrivateMessage(TEXT("게임 진행 중입니다."), FColor::Red, 100);
         */
@@ -39,20 +38,18 @@ void AT5GameMode::PostLogin(APlayerController* NewPlayer)
         for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
         {
             if (AT5PlayerController* PC = Cast<AT5PlayerController>(It->Get()))
-                PC->Client_PrivateMessage(JoinMsg, FColor::Cyan, -1); // -1: 로그처럼 쌓이게
+                PC->Client_PrivateMessage(JoinMsg, FColor::Cyan, -1);
         }
     }
     */
 
-    // 누군가 들어올 때마다 타이머 리셋
-    // "마지막 사람이 들어오고 나서 2초 뒤"에 카운트다운 시작
+    // 타이머 리셋 및 카운트다운 준비
     GetWorldTimerManager().ClearTimer(TimerHandle_LobbyWait);
     
-    // 현재 인원 파악
     int32 NumPlayers = GetNumPlayers();
-    if (NumPlayers >= 2) // 최소 2명은 있어야 게임 가능
+    if (NumPlayers >= 2) 
     {
-        /* [디버그] 인원 확인 메시지
+        /* [디버그] 대기 메시지
         FString WaitMsg = FString::Printf(TEXT("현재 %d명. 잠시 후 시작합니다..."), NumPlayers);
         for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
         {
@@ -61,7 +58,6 @@ void AT5GameMode::PostLogin(APlayerController* NewPlayer)
         }
         */
 
-        // 2초 대기 후 StartCountdown 호출
         GetWorldTimerManager().SetTimer(TimerHandle_LobbyWait, this, &AT5GameMode::StartCountdown, 2.0f, false);
     }
 }
@@ -70,7 +66,7 @@ void AT5GameMode::StartCountdown()
 {
     if (bIsGameStarted) return;
     bIsGameStarted = true;
-    CurrentCountdown = 3; // 3초 카운트
+    CurrentCountdown = 3; 
 
     GetWorldTimerManager().SetTimer(TimerHandle_Countdown, this, &AT5GameMode::OnCountdownTick, 1.0f, true);
 }
@@ -79,9 +75,8 @@ void AT5GameMode::OnCountdownTick()
 {
     if (CurrentCountdown > 0)
     {
-        /* [디버그] 카운트다운 메시지 출력
+        /* [디버그] 카운트다운 출력
         FString CountMsg = FString::Printf(TEXT("게임 시작 %d초 전..."), CurrentCountdown);
-        // 모두에게 카운트다운 전송
         for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
         {
             if (AT5PlayerController* PC = Cast<AT5PlayerController>(It->Get()))
@@ -99,9 +94,8 @@ void AT5GameMode::OnCountdownTick()
 
 void AT5GameMode::RealStartMatch()
 {
-    // [테스트 코드] 자동 역할 분배 로직 (다른 팀원 작업 전 임시 사용)
+    // [테스트 코드] 자동 역할 분배 (추후 로직 복구 시 주석 해제)
     /*
-    // 모든 플레이어 수집
     TArray<AT5PlayerController*> AllPlayers;
     for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
     {
@@ -111,14 +105,12 @@ void AT5GameMode::RealStartMatch()
 
     if (AllPlayers.Num() < 2) 
     {
-        bIsGameStarted = false; // 인원 부족으로 취소
+        bIsGameStarted = false; 
         return; 
     }
 
-    // 랜덤 술래 선정
     int32 HunterIndex = FMath::RandRange(0, AllPlayers.Num() - 1);
 
-    // 역할 분배 및 통보
     for (int32 i = 0; i < AllPlayers.Num(); ++i)
     {
         AT5PlayerController* PC = AllPlayers[i];
@@ -129,42 +121,97 @@ void AT5GameMode::RealStartMatch()
         if (i == HunterIndex)
         {
             PS->SetPlayerRole(EPlayerRole::Hunter);
-            PC->Client_SetRole(EPlayerRole::Hunter); // 술래 통보
+            PC->Client_SetRole(EPlayerRole::Hunter);
         }
         else
         {
             PS->SetPlayerRole(EPlayerRole::Animal);
-            PC->Client_SetRole(EPlayerRole::Animal); // 도망자 통보
+            PC->Client_SetRole(EPlayerRole::Animal);
         }
     }
     */
 }
 
+// 공격 판정 및 결과 처리
 void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
 {
+    // 1. 공격자 확인 (플레이어여야 함)
     AT5PlayerController* AttackerPC = Cast<AT5PlayerController>(Attacker);
-    if (!AttackerPC || !VictimActor) return;
+    if (!AttackerPC) return;
 
     AT5PlayerState* AttackerPS = AttackerPC->GetPlayerState<AT5PlayerState>();
-    APawn* VictimPawn = Cast<APawn>(VictimActor);
-    AT5PlayerController* VictimPC = VictimPawn ? Cast<AT5PlayerController>(VictimPawn->GetController()) : nullptr;
-    AT5PlayerState* VictimPS = VictimPC ? VictimPC->GetPlayerState<AT5PlayerState>() : nullptr;
+    if (!AttackerPS) return;
 
-    if (!AttackerPS || AttackerPS->CurrentRole != EPlayerRole::Hunter)
+    // ----------------------------------------------------------------
+    // 상황 1: 허공을 공격함 (Miss)
+    // ----------------------------------------------------------------
+    if (VictimActor == nullptr)
     {
-        // [디버그] 공격 실패 메시지
-        // AttackerPC->Client_PrivateMessage(TEXT("술래만 공격할 수 있습니다!"), FColor::Red, 100);
+        // 술래가 헛스윙하면 체력 10 감소
+        if (AttackerPS->GetPlayerRole() == EPlayerRole::Hunter)
+        {
+            AttackerPS->ApplyDamage(10.0f);
+        }
         return;
     }
 
-    if (VictimPS)
+    // ----------------------------------------------------------------
+    // 상황 2: 다른 [플레이어]를 공격함
+    // ----------------------------------------------------------------
+    if (APawn* VictimPawn = Cast<APawn>(VictimActor))
     {
-        AttackerPS->AddScore(1.0f);
+        // Pawn -> Controller -> PlayerState 순으로 가져옴
+        AT5PlayerController* VictimPC = Cast<AT5PlayerController>(VictimPawn->GetController());
         
-        // [디버그] 검거 성공/사망 메시지
-        /*
-        AttackerPC->Client_PrivateMessage(TEXT("[검거 성공!]"), FColor::Green, 100);
-        if (VictimPC) VictimPC->Client_PrivateMessage(TEXT("[사망] 술래에게 잡혔습니다!"), FColor::Red, 100);
-        */
+        if (VictimPC) // 상대방이 플레이어
+        {
+            AT5PlayerState* VictimPS = VictimPC->GetPlayerState<AT5PlayerState>();
+            if (VictimPS)
+            {
+                // 술래가 도망자를 공격 (검거)
+                if (AttackerPS->GetPlayerRole() == EPlayerRole::Hunter && 
+                    VictimPS->GetPlayerRole() == EPlayerRole::Animal)
+                {
+                    VictimPS->ApplyDamage(50.0f);
+                }
+                
+            }
+            return;
+        }
     }
+
+    // ----------------------------------------------------------------
+    // 상황 3: [AI]를 공격함 (플레이어가 아님)
+    // ----------------------------------------------------------------
+    // 플레이어가 아닌데 공격받았다면 AI로 간주
+    
+    // 술래가 AI를 공격 -> AI 파괴
+    if (AttackerPS->GetPlayerRole() == EPlayerRole::Hunter)
+    {
+        UGameplayStatics::ApplyDamage(
+            VictimActor, 
+            100.0f,
+            AttackerPC,
+            AttackerPC->GetPawn(),
+            UDamageType::StaticClass()
+        );
+
+    }
+}
+
+void AT5GameMode::ProcessActorDeath(AActor* Victim, AController* Killer)
+{
+    FString KillerName = Killer ? Killer->GetName() : TEXT("Unknown");
+    FString VictimName = Victim ? Victim->GetName() : TEXT("Unknown");
+
+    FString KillMsg = FString::Printf(TEXT("[System] %s 님이 %s 을(를) 처치했습니다!"), *KillerName, *VictimName);
+    
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        if (AT5PlayerController* PC = Cast<AT5PlayerController>(It->Get()))
+        {
+            PC->Client_PrivateMessage(KillMsg, FColor::Red, -1);
+        }
+    
+    UE_LOG(LogTemp, Warning, TEXT("!!! DEATH EVENT !!! %s killed %s"), *KillerName, *VictimName);
 }
