@@ -15,6 +15,9 @@ public:
 
 	void StartCountdown();
 	void ProcessAttack(AController* Attacker, AActor* VictimActor);
+	
+	UFUNCTION(BlueprintCallable)
+	void ProcessActorDeath(AActor* Victim, AController* Killer);
 
 protected:
 	void OnCountdownTick();
