@@ -123,6 +123,9 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+
+	EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &APlayerCharacter::Attack);
+	
 }
 
 void APlayerCharacter::Move(const FInputActionValue& Value)
@@ -165,4 +168,15 @@ void APlayerCharacter::Look(const FInputActionValue& Value)
 
 	AddControllerPitchInput(LookAxisVector.Y * GetWorld()->DeltaRealTimeSeconds * mouseSpeed);
 	AddControllerYawInput(LookAxisVector.X * GetWorld()->DeltaRealTimeSeconds * mouseSpeed);
+}
+
+
+void APlayerCharacter::Attack()
+{
+	// 1. 로그로 작동 확인
+	UE_LOG(LogTemp, Warning, TEXT("공격 버튼 눌림!"));
+
+	// 2. 공격 애니메이션 실행 (나중에 추가)
+    
+	// 3. 공격 판정 로직 (나중에 여기에 Raycast 등을 넣어서 GameMode->ProcessAttack 호출)
 }
