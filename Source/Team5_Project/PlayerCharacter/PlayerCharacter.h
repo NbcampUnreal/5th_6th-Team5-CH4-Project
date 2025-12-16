@@ -50,8 +50,15 @@ private:
 	class UInputAction* JumpAction;
 
 	UPROPERTY(VisibleAnywhere, Category = "Input")
+	class UInputAction* AttackAction;
+
+	UPROPERTY(VisibleAnywhere, Category = "Input")
 	float mouseSpeed = 30;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Animation", meta = (AllowPrivateAccess = "true"))
+	bool bIsFalling = false;
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	void Attack();
 };

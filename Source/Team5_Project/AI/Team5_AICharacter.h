@@ -4,6 +4,8 @@
 #include "GameFramework/Character.h"
 #include "Team5_AICharacter.generated.h"
 
+class UTeam5_DamageTakenComponent;
+
 UCLASS()
 class TEAM5_PROJECT_API ATeam5_AICharacter : public ACharacter
 {
@@ -15,13 +17,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-public:	
+public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AIState")
-	float AI_MaxHP = 5.f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AIState")
-	float AI_HP = 0.f;
-	
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DamageComp")
+	UTeam5_DamageTakenComponent* DamageTakenComponent;
 };

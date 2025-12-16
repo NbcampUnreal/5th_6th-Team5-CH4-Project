@@ -10,7 +10,7 @@ public class Team5_Project : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] {  });
+		PrivateDependencyModuleNames.AddRange(new string[] { "AIModule" });
 		
 		PublicIncludePaths.AddRange(new string[] { "Team5_Project" });
 		
