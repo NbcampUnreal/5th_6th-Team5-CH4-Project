@@ -212,6 +212,6 @@ void AT5GameMode::ProcessActorDeath(AActor* Victim, AController* Killer)
         {
             PC->Client_PrivateMessage(KillMsg, FColor::Red, -1);
         }
-    
+    }   
     UE_LOG(LogTemp, Warning, TEXT("!!! DEATH EVENT !!! %s killed %s"), *KillerName, *VictimName);
 }
