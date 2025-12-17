@@ -1,7 +1,7 @@
 #include "T5GameMode.h"
 #include "T5GameState.h"
-// #include "PlayerCharacter/T5PlayerController.h"
-// #include "PlayerCharacter/T5PlayerState.h"
+#include "PlayerCharacter/T5PlayerController.h"
+#include "PlayerCharacter/T5PlayerState.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
@@ -11,6 +11,8 @@
 AT5GameMode::AT5GameMode()
 {
     GameStateClass = AT5GameState::StaticClass();
+    PlayerControllerClass = AT5PlayerController::StaticClass();
+    PlayerStateClass = AT5PlayerState::StaticClass();
     
     static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter"));
     if (PlayerPawnBPClass.Class != NULL) DefaultPawnClass = PlayerPawnBPClass.Class;
@@ -66,13 +68,13 @@ void AT5GameMode::RealStartMatch()
     if (!GS) return;
 
     GS->CurrentMatchState = EMatchState::Playing;
-    GS->RemainingTime = 60; // 60초 제한시간
+    GS->RemainingTime = 60;
 
     // 1. 모든 플레이어 수집
-    TArray<APlayerController*> AllPlayers;
+    TArray<AT5PlayerController*> AllPlayers;
     for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
     {
-        if (APlayerController* PC = Cast<APlayerController>(It->Get()))
+        if (AT5PlayerController* PC = Cast<AT5PlayerController>(It->Get()))
         {
             AllPlayers.Add(PC);
         }
@@ -80,14 +82,32 @@ void AT5GameMode::RealStartMatch()
 
     if (AllPlayers.Num() == 0) return;
 
-    // 2. [랜덤] 술래 추첨
+    // 2. 랜덤 술래 추첨
     int32 HunterIndex = FMath::RandRange(0, AllPlayers.Num() - 1);
     CurrentHunterPC = AllPlayers[HunterIndex]; // 술래 저장
 
-    // 로그 출력
-    if (APlayerState* PS = CurrentHunterPC->GetPlayerState<APlayerState>())
+    // 3. 역할 분배 및 데이터 저장
+    for (int32 i = 0; i < AllPlayers.Num(); ++i)
     {
-        UE_LOG(LogTemp, Error, TEXT(">>> [랜덤 배정] 술래는 '%s' 님 입니다! <<<"), *PS->GetPlayerName());
+        AT5PlayerController* PC = AllPlayers[i];
+        AT5PlayerState* PS = PC->GetPlayerState<AT5PlayerState>(); // 팀원의 PlayerState 가져오기
+
+        if (!PS) continue;
+
+        if (i == HunterIndex)
+        {
+            // 술래 설정
+            PS->SetPlayerRole(EPlayerRole::Hunter); // 데이터 저장
+            PC->Client_SetRole(EPlayerRole::Hunter); // UI 알림 (RPC)
+            
+            UE_LOG(LogTemp, Error, TEXT(">>> [술래] %s <<<"), *PS->GetPlayerName());
+        }
+        else
+        {
+            // 도망자 설정
+            PS->SetPlayerRole(EPlayerRole::Animal);
+            PC->Client_SetRole(EPlayerRole::Animal);
+        }
     }
 
     // 3. 도망자 수 계산 (전체 인원 - 1)
