@@ -9,6 +9,8 @@
 #include "InputMappingContext.h"
 #include <Kismet/KismetMathLibrary.h>
 #include "GameFramework/CharacterMovementComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -97,7 +99,7 @@ void APlayerCharacter::BeginPlay()
 	}
 
 
-	GetCharacterMovement()->MaxWalkSpeed = 300;
+	GetCharacterMovement()->MaxWalkSpeed = 600;
 }
 
 // Called every frame
@@ -170,13 +172,53 @@ void APlayerCharacter::Look(const FInputActionValue& Value)
 	AddControllerYawInput(LookAxisVector.X * GetWorld()->DeltaRealTimeSeconds * mouseSpeed);
 }
 
+bool APlayerCharacter::DoLineTrace(FHitResult& OutHit) const
+{
+	if (!Controller) return false;
 
-void APlayerCharacter::Attack()
+	const FVector Start = GetMesh()->GetComponentLocation() + FVector(0.f, 0.f, 50.f);
+	const FVector End = Start + GetActorForwardVector() * TraceDistance;
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PlayerTrace), true);
+	Params.AddIgnoredActor(this);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		OutHit,
+		Start,
+		End,
+		ECC_Visibility,
+		Params
+	);
+
+	DrawDebugLine(GetWorld(), Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.5f);
+
+	if (bHit)
+	{
+		DrawDebugSphere(GetWorld(), OutHit.ImpactPoint, 8.f, 12, FColor::Red, false, 1.0f);
+	}
+
+	return bHit;
+}
+
+void APlayerCharacter::Attack(const struct FInputActionValue& Value)
 {
 	// 1. 로그로 작동 확인
 	UE_LOG(LogTemp, Warning, TEXT("공격 버튼 눌림!"));
 
+	FHitResult Hit;
+	if (DoLineTrace(Hit))
+	{
+		AActor* HitActor = Hit.GetActor();
+		if (HitActor)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Hit Actor: %s | Point: %s"),
+				*HitActor->GetName(),
+				*Hit.ImpactPoint.ToString()
+			);
+		}
+	}
 	// 2. 공격 애니메이션 실행 (나중에 추가)
     
 	// 3. 공격 판정 로직 (나중에 여기에 Raycast 등을 넣어서 GameMode->ProcessAttack 호출)
+	
 }

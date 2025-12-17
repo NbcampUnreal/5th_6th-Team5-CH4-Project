@@ -1,7 +1,7 @@
 #include "T5GameMode.h"
-#include "T5PlayerController.h"
+#include "PlayerCharacter/T5PlayerController.h"
 #include "T5GameState.h"
-#include "T5PlayerState.h"
+#include "PlayerCharacter/T5PlayerState.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 
