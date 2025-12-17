@@ -8,6 +8,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include <Kismet/KismetMathLibrary.h>
+
+#include "Axe.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Kismet/GameplayStatics.h"
@@ -100,6 +102,22 @@ void APlayerCharacter::BeginPlay()
 
 
 	GetCharacterMovement()->MaxWalkSpeed = 600;
+
+	//Axe를 가지고 와서 SkeletonMesh의 RightHandSocket에 붙히고 PlayerController에서 사용할 수 있도록 설정
+	if (AxeClass)
+	{
+		Axe = GetWorld()->SpawnActor<AAxe>(AxeClass);
+
+		if (Axe)
+		{
+			Axe->SetOwner(this);
+			Axe->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("RightHandSocket"));
+		}
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			Axe->OwnerController = PC;
+		}
+	}
 }
 
 // Called every frame

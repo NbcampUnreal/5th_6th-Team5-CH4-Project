@@ -68,4 +68,12 @@ private:
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	
+private:
+	//에디터에서 선택할 수 있도록 설정
+	UPROPERTY(EditDefaultsOnly, Category = "Axe")
+	TSubclassOf<class AAxe> AxeClass;
+	
+	UPROPERTY()
+	AAxe* Axe = nullptr;
 };
