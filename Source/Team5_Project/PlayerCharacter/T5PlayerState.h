@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerState.h"
 #include "T5PlayerState.generated.h"
 
+
 UENUM(BlueprintType)
 enum class EPlayerRole : uint8
 {
@@ -26,14 +27,13 @@ public:
     UFUNCTION(BlueprintPure)
     EPlayerRole GetPlayerRole() const { return CurrentRole; }
 
-    void AddScore(float ScoreToAdd);
     void ApplyDamage(float Amount);
 
 public:
     UPROPERTY(ReplicatedUsing = OnRep_CurrentRole, BlueprintReadOnly)
     EPlayerRole CurrentRole;
 
-    // [핵심] HP 변수
+    // HP 변수
     UPROPERTY(Replicated, BlueprintReadOnly)
     float CurrentHP;
 

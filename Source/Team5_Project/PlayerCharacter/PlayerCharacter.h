@@ -58,7 +58,14 @@ private:
 	UPROPERTY(BlueprintReadOnly, Category = "Animation", meta = (AllowPrivateAccess = "true"))
 	bool bIsFalling = false;
 
+	UFUNCTION()
+	void Attack(const struct FInputActionValue& Value);
+
+	bool DoLineTrace(FHitResult& OutHit) const;
+
+	UPROPERTY(EditAnywhere, Category = "Trace")
+	float TraceDistance = 150.f;
+
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
-	void Attack();
 };
