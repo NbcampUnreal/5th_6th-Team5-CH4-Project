@@ -19,8 +19,9 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Events")
     FOnDeathDelegate OnDeathDelegate;
 
-protected:
-    virtual void BeginPlay() override;
+    // [추가] 현재 체력을 외부에서 확인하기 위한 함수
+    UFUNCTION(BlueprintCallable, Category = "HP")
+    float GetCurrentHP() const { return CurrentHP; }
 
     UPROPERTY(editAnywhere, BlueprintReadWrite, Category = "HP")
     float CurrentHP;
@@ -28,6 +29,11 @@ protected:
     float MaxHP;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HP")
     bool bIsAlive;
+
+protected:
+    virtual void BeginPlay() override;
+
+  
 
     UFUNCTION()
     void OnDamageTaken(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);

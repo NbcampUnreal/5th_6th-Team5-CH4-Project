@@ -28,12 +28,12 @@ public:
     AT5GameMode();
     virtual void PostLogin(APlayerController* NewPlayer) override;
 
-    // --- 게임 진행 관련 ---
+    // 게임 진행 관련
     void StartCountdown();
     void GameTimerTick();
     void FinishGame(bool bHunterWin);
 
-    // --- 핵심 로직 (판정 및 처형) ---
+    // 판정 및 처형
     // 공격 판정: 룰북을 보고 데미지 명령을 내림
     void ProcessAttack(AController* Attacker, AActor* VictimActor);
     

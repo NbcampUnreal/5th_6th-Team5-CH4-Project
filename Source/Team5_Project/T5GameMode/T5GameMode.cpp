@@ -4,6 +4,7 @@
 #include "PlayerCharacter/T5PlayerState.h"
 
 #include "EngineUtils.h"
+#include "AI/Team5_DamageTakenComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h" 
 
@@ -147,13 +148,29 @@ void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
     APlayerController* AttackerPC = Cast<APlayerController>(Attacker);
     if (!AttackerPC || AttackerPC != CurrentHunterPC) return; // 술래만 공격 가능
 
+    // 공격자(술래)의 HP 컴포넌트 가져오기 (패널티 적용 후 HP 확인용)
+    APawn* AttackerPawn = AttackerPC->GetPawn();
+    UTeam5_DamageTakenComponent* HunterHPComp = AttackerPawn ? AttackerPawn->FindComponentByClass<UTeam5_DamageTakenComponent>() : nullptr;
+    
     // A. 허공 공격 (패널티)
     if (VictimActor == nullptr)
     {
-        UE_LOG(LogTemp, Error, TEXT("[패널티] 허공 공격! HP -10"));
-        if (APawn* AttackerPawn = AttackerPC->GetPawn())
+        if (AttackerPawn)
         {
-             UGameplayStatics::ApplyDamage(AttackerPawn, 10.0f, AttackerPC, AttackerPawn, UDamageType::StaticClass());
+            // 술래에게 데미지 적용
+            UGameplayStatics::ApplyDamage(AttackerPawn, 10.0f, AttackerPC, AttackerPawn, UDamageType::StaticClass());
+
+            // 술래 현재 HP 로그 출력
+            if (HunterHPComp)
+            {
+                float CurrentHP = HunterHPComp->GetCurrentHP();
+                UE_LOG(LogTemp, Warning, TEXT("    -> 술래 현재 HP: %.1f"), CurrentHP);
+
+                if (CurrentHP <= 0.0f)
+                {
+                    UE_LOG(LogTemp, Error, TEXT(">>> [결과] 술래가 패널티 누적으로 사망(패배)했습니다! <<<"));
+                }
+            }
         }
         return;
     }
@@ -183,6 +200,7 @@ void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
     if (APawn* VictimPawn = Cast<APawn>(VictimActor))
     {
         AController* VictimController = VictimPawn->GetController();
+        UTeam5_DamageTakenComponent* VictimHPComp = VictimPawn->FindComponentByClass<UTeam5_DamageTakenComponent>();
         
         // AI(함정) 체크
         if (VictimController && !VictimController->IsPlayerController())
@@ -190,16 +208,45 @@ void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
             UE_LOG(LogTemp, Error, TEXT("[함정] AI 공격! (술래 HP -30)"));
             // 술래에게 패널티
             UGameplayStatics::ApplyDamage(AttackerPC->GetPawn(), 30.0f, AttackerPC, nullptr, UDamageType::StaticClass());
+
+            // (1) AI(함정) 타격
+            // 주의: AI인데 컨트롤러가 없으면 이 조건문이 제대로 동작 안 할 수 있음. 
+            // 확실한 AI 판단을 위해 'IsPlayerController'가 아닌 경우를 체크
+            if (VictimController && !VictimController->IsPlayerController())
+            {
+                UE_LOG(LogTemp, Error, TEXT(">>> [함정] AI(%s) 타격! (술래 -30)"), *VictimActor->GetName());
             
-            // AI는 즉사급 데미지 줘서 제거
-            UGameplayStatics::ApplyDamage(VictimActor, 9999.0f, AttackerPC, nullptr, UDamageType::StaticClass());
+                UGameplayStatics::ApplyDamage(AttackerPawn, 30.0f, AttackerPC, nullptr, UDamageType::StaticClass());
+                UGameplayStatics::ApplyDamage(VictimActor, 9999.0f, AttackerPC, nullptr, UDamageType::StaticClass());
+
+                if (HunterHPComp && HunterHPComp->GetCurrentHP() <= 0.0f) 
+                    UE_LOG(LogTemp, Error, TEXT(">>> 술래 사망 (패배) <<<"));
+            }
         }
+        // (2) 도망자(플레이어) 타격
+        else if (VictimController && VictimController->IsPlayerController())
+        {
+            UE_LOG(LogTemp, Display, TEXT(">>> [적중] 도망자(%s) 타격! (데미지 %.1f)"), *VictimActor->GetName(), DamageToApply);
+            UGameplayStatics::ApplyDamage(VictimActor, DamageToApply, AttackerPC, nullptr, UDamageType::StaticClass());
+
+            if (VictimHPComp)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("    -> 도망자 남은 HP: %.1f"), VictimHPComp->GetCurrentHP());
+                if (VictimHPComp->GetCurrentHP() <= 0.0f) UE_LOG(LogTemp, Error, TEXT(">>> 도망자 검거 완료 <<<"));
+            }
+        }
+        // (3) Pawn이긴 한데 컨트롤러가 없음 (예: 배치만 해두고 실행 안 된 AI)
         else
         {
-            // 진짜 도망자 -> 룰북 데미지 적용
-            UE_LOG(LogTemp, Display, TEXT("[적중] 도망자 타격! 데미지: %.1f"), DamageToApply);
+            UE_LOG(LogTemp, Warning, TEXT("[주의] 캐릭터(%s)를 때렸는데 컨트롤러가 없습니다. (단순 오브젝트 취급)"), *VictimActor->GetName());
+            // 일단 데미지는 줘본다
             UGameplayStatics::ApplyDamage(VictimActor, DamageToApply, AttackerPC, nullptr, UDamageType::StaticClass());
         }
+    }
+    // Pawn이 아님 (무기, 벽, 바닥 등)
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("[무효] 타격된 물체는 캐릭터가 아닙니다: %s"), *VictimActor->GetName());
     }
 }
 
