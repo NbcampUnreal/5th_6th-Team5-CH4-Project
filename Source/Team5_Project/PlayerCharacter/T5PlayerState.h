@@ -4,7 +4,6 @@
 #include "GameFramework/PlayerState.h"
 #include "T5PlayerState.generated.h"
 
-
 UENUM(BlueprintType)
 enum class EPlayerRole : uint8
 {
@@ -21,6 +20,8 @@ class TEAM5_PROJECT_API AT5PlayerState : public APlayerState
 public:
     AT5PlayerState();
     
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
     UFUNCTION(BlueprintCallable)
     void SetPlayerRole(EPlayerRole NewRole);
 
@@ -33,12 +34,14 @@ public:
     UPROPERTY(ReplicatedUsing = OnRep_CurrentRole, BlueprintReadOnly)
     EPlayerRole CurrentRole;
 
-    // HP 변수
     UPROPERTY(Replicated, BlueprintReadOnly)
     float CurrentHP;
+
+    // [추가] 룰북 검색을 위한 캐릭터 ID (Hunter, Animal 등)
+    UPROPERTY(Replicated, BlueprintReadOnly)
+    FName CharacterID;
 
 protected:
     UFUNCTION()
     void OnRep_CurrentRole();
-    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

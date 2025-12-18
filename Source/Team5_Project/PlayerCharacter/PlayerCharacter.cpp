@@ -14,6 +14,11 @@
 #include "DrawDebugHelpers.h"
 #include "Kismet/GameplayStatics.h"
 
+// [추가] 로직 처리를 위해 필요한 헤더들
+#include "T5GameMode/T5GameMode.h"            // 게임모드와 통신
+#include "AI/Team5_DamageTakenComponent.h"    // 컴포넌트와 통신
+#include "Components/CapsuleComponent.h"      // 충돌 제어 (죽었을 때)
+
 // Sets default values
 APlayerCharacter::APlayerCharacter()
 {
@@ -48,6 +53,10 @@ APlayerCharacter::APlayerCharacter()
 		Camera->bUsePawnControlRotation = false;
 	}
 
+	// [추가] C++에서 컴포넌트를 직접 생성해서 붙여버리는 코드
+	// 이걸 넣으면 블루프린트에서 추가 안 해도 자동으로 생깁니다.
+	DamageComp = CreateDefaultSubobject<UTeam5_DamageTakenComponent>(TEXT("DamageTakenComponent"));
+	
 	static ConstructorHelpers::FObjectFinder<UInputMappingContext> InputContext(TEXT("/Script/EnhancedInput.InputMappingContext'/Game/KNC_Chatacter/Input/IMC_DefaultInput.IMC_DefaultInput'"));
 	if (InputContext.Succeeded())
 	{
@@ -103,6 +112,18 @@ void APlayerCharacter::BeginPlay()
 
 	GetCharacterMovement()->MaxWalkSpeed = 600;
 
+	// [추가] 컴포넌트 찾기 및 델리게이트 연결
+	// 블루프린트에서 추가된 DamageTakenComponent를 찾아서, 죽었을 때 OnDeath 함수가 실행되게 연결합니다.
+	DamageComp = FindComponentByClass<UTeam5_DamageTakenComponent>();
+	if (DamageComp)
+	{
+		DamageComp->OnDeathDelegate.AddDynamic(this, &APlayerCharacter::OnDeath);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("오류: 캐릭터에 DamageTakenComponent가 없습니다! 블루프린트에서 추가해주세요."));
+	}
+	
 	//Axe를 가지고 와서 SkeletonMesh의 RightHandSocket에 붙히고 PlayerController에서 사용할 수 있도록 설정
 	if (AxeClass)
 	{
@@ -190,7 +211,7 @@ void APlayerCharacter::Look(const FInputActionValue& Value)
 	AddControllerYawInput(LookAxisVector.X * GetWorld()->DeltaRealTimeSeconds * mouseSpeed);
 }
 
-bool APlayerCharacter::DoLineTrace(FHitResult& OutHit) const
+/*bool APlayerCharacter::DoLineTrace(FHitResult& OutHit) const
 {
 	if (!Controller) return false;
 
@@ -216,9 +237,9 @@ bool APlayerCharacter::DoLineTrace(FHitResult& OutHit) const
 	}
 
 	return bHit;
-}
+}*/
 
-void APlayerCharacter::Attack(const struct FInputActionValue& Value)
+/*void APlayerCharacter::Attack(const struct FInputActionValue& Value)
 {
 	// 1. 로그로 작동 확인
 	UE_LOG(LogTemp, Warning, TEXT("공격 버튼 눌림!"));
@@ -239,4 +260,90 @@ void APlayerCharacter::Attack(const struct FInputActionValue& Value)
     
 	// 3. 공격 판정 로직 (나중에 여기에 Raycast 등을 넣어서 GameMode->ProcessAttack 호출)
 	
+}*/
+
+// -----------------------------------------------------------------------------------
+// [수정] 공격 로직 변경: 로컬 판정 -> 서버 RPC 요청
+// -----------------------------------------------------------------------------------
+void APlayerCharacter::Attack(const struct FInputActionValue& Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("공격 버튼 눌림!"));
+
+	// [수정] 바로 판정하지 않고, 서버에게 "나 쐈어!"라고 위치/방향 정보를 보냅니다.
+	if (Controller)
+	{
+		FVector Start, Dir;
+		FRotator Rot;
+		Controller->GetPlayerViewPoint(Start, Rot); 
+		Dir = Rot.Vector();
+        
+		Server_Attack(Start, Dir); // RPC 호출
+	}
+}
+
+// [추가] 서버 공격 검증 (보안상 필요, 일단 true 리턴)
+bool APlayerCharacter::Server_Attack_Validate(FVector Start, FVector Dir)
+{
+	return true; 
+}
+
+// [추가] 서버에서 실제로 실행되는 공격 로직
+void APlayerCharacter::Server_Attack_Implementation(FVector Start, FVector Dir)
+{
+	FHitResult Hit;
+    
+	// 서버에서 라인 트레이스를 실행합니다.
+	if (DoLineTrace(Hit, Start, Dir))
+	{
+		AActor* HitActor = Hit.GetActor();
+       
+		// 맞은게 있으면 게임모드에게 "내가 쟤 때렸어, 판정해줘" 라고 요청합니다.
+		if (AT5GameMode* GM = Cast<AT5GameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			GM->ProcessAttack(GetController(), HitActor);
+		}
+	}
+	else
+	{
+		// 허공을 때렸을 때 (패널티 처리를 위해 게임모드에 알림)
+		if (AT5GameMode* GM = Cast<AT5GameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			GM->ProcessAttack(GetController(), nullptr);
+		}
+	}
+}
+
+// [수정] 트레이스 함수: 시작점과 방향을 인자로 받도록 변경 (서버/클라 공용)
+bool APlayerCharacter::DoLineTrace(FHitResult& OutHit, FVector Start, FVector Dir) const
+{
+	const FVector End = Start + (Dir * TraceDistance);
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PlayerTrace), true);
+	Params.AddIgnoredActor(this);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+	   OutHit, Start, End, ECC_Visibility, Params
+	);
+
+	// 디버그 라인 (서버에서도 보이도록 설정)
+	DrawDebugLine(GetWorld(), Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.5f);
+
+	return bHit;
+}
+
+// -----------------------------------------------------------------------------------
+// [추가] 사망 처리 중개 로직 (컴포넌트 -> 캐릭터 -> 게임모드)
+// -----------------------------------------------------------------------------------
+void APlayerCharacter::OnDeath()
+{
+	// 1. 내 상태 변경 (입력 차단 및 충돌 끄기)
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    
+	// 2. 게임모드에게 사망 사실 신고
+	// (컴포넌트는 게임모드를 모르므로, 캐릭터가 대신 신고해줍니다.)
+	if (AT5GameMode* GM = Cast<AT5GameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		GM->ProcessActorDeath(this, nullptr);
+	}
 }
