@@ -21,4 +21,6 @@ public:
 	
 	UPROPERTY()
 	APlayerController* OwnerController = nullptr;
+
+	UStaticMeshComponent* GetAxeMesh() const { return Axe_Mesh; }
 };

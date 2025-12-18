@@ -7,6 +7,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "T5PlayerState.h"
 #include <Kismet/KismetMathLibrary.h>
 #include "Axe.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -15,6 +16,8 @@
 #include "T5GameMode/T5GameMode.h"
 #include "AI/Team5_DamageTakenComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "PlayerCharacter/PlayerCharacterAnimInstance.h"
+#include "Components/StaticMeshComponent.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -50,7 +53,7 @@ APlayerCharacter::APlayerCharacter()
 		Camera->bUsePawnControlRotation = false;
 	}
 
-	DamageComp = CreateDefaultSubobject<UTeam5_DamageTakenComponent>(TEXT("DamageTakenComponent"));
+	DamageTakenComponent = CreateDefaultSubobject<UTeam5_DamageTakenComponent>("DamageTakenComponent");
 
 	static ConstructorHelpers::FObjectFinder<UInputMappingContext> InputContext(TEXT("/Script/EnhancedInput.InputMappingContext'/Game/KNC_Chatacter/Input/IMC_DefaultInput.IMC_DefaultInput'"));
 	if (InputContext.Succeeded())
@@ -88,6 +91,12 @@ void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (UPlayerCharacterAnimInstance* Anim = Cast<UPlayerCharacterAnimInstance>(GetMesh()->GetAnimInstance()))
+	{
+		Anim->OnAttackStart.RemoveAll(this);
+		Anim->OnAttackStart.AddUObject(this, &APlayerCharacter::HandleAttackStartNotify);
+	}
+
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* SubSystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
@@ -107,10 +116,10 @@ void APlayerCharacter::BeginPlay()
 
 	GetCharacterMovement()->MaxWalkSpeed = 600;
 
-	DamageComp = FindComponentByClass<UTeam5_DamageTakenComponent>();
-	if (DamageComp)
+	DamageTakenComponent = FindComponentByClass<UTeam5_DamageTakenComponent>();
+	if (DamageTakenComponent)
 	{
-		DamageComp->OnDeathDelegate.AddDynamic(this, &APlayerCharacter::OnDeath);
+		DamageTakenComponent->OnDeathDelegate.AddDynamic(this, &APlayerCharacter::OnDeath);
 	}
 	else
 	{
@@ -132,6 +141,64 @@ void APlayerCharacter::BeginPlay()
 			Axe->OwnerController = PC;
 		}
 	}
+
+	if (AT5PlayerState* PS = GetPlayerState<AT5PlayerState>())
+	{
+		UpdateCharacterMesh(PS->CurrentRole);
+	}
+
+}
+
+void APlayerCharacter::UpdateCharacterMesh(EPlayerRole NewRole)
+{
+	USkeletalMesh* NewMesh = nullptr;
+	TSubclassOf<UAnimInstance> NewAnimBP = nullptr;
+	bool bShowWeapon = false;
+
+	switch (NewRole)
+	{
+	case EPlayerRole::Hunter:
+		NewMesh = HunterMesh;
+		NewAnimBP = HunterAnimBP;
+		bShowWeapon = true;
+		break;
+
+	case EPlayerRole::Animal:
+		NewMesh = AnimalMesh;
+		NewAnimBP = AnimalAnimBP;
+		bShowWeapon = false;
+		break;
+
+	default:
+		return;
+	}
+
+	if (NewMesh && GetMesh())
+	{
+		GetMesh()->SetSkeletalMesh(NewMesh);
+
+		// GetMesh()->SetRelativeLocation(FVector(0, 0, -90)); 
+		// GetMesh()->SetRelativeRotation(FRotator(0, -90, 0));
+	}
+
+	if (NewAnimBP && GetMesh())
+	{
+		GetMesh()->SetAnimInstanceClass(NewAnimBP);
+
+		if (UPlayerCharacterAnimInstance* Anim = Cast<UPlayerCharacterAnimInstance>(GetMesh()->GetAnimInstance()))
+		{
+			Anim->OnAttackStart.RemoveAll(this);
+			Anim->OnAttackStart.AddUObject(this, &APlayerCharacter::HandleAttackStartNotify);
+		}
+
+	}
+
+	if (Axe)
+	{
+		Axe->SetActorHiddenInGame(!bShowWeapon);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("외형 변경 완료: %d"), (int32)NewRole);
 }
 
 // Called every frame
@@ -225,15 +292,29 @@ void APlayerCharacter::Attack(const struct FInputActionValue& Value)
 {
 	UE_LOG(LogTemp, Warning, TEXT("공격 버튼 눌림!"));
 
-	if (Controller)
-	{
-		FVector Start, Dir;
-		FRotator Rot;
-		Controller->GetPlayerViewPoint(Start, Rot);
-		Dir = Rot.Vector();
+	if (!Controller) return;
 
-		Server_Attack(Start, Dir);
+	bAttackStartFired = false;
+
+	if (UAnimInstance* Anim = GetMesh()->GetAnimInstance())
+	{
+		if (AttackMontage)
+		{
+			Anim->Montage_Play(AttackMontage);
+		}
 	}
+
+	const FRotator ControlRot = Controller->GetControlRotation();
+	AttackLockedYaw = ControlRot.Yaw;
+	bIsAttacking = true;
+
+	GetWorldTimerManager().ClearTimer(AttackFaceOffTimerHandle);
+	GetWorldTimerManager().SetTimer(
+		AttackFaceOffTimerHandle,
+		[this]() { bIsAttacking = false; },
+		AttackFaceHoldTime,
+		false
+	);
 }
 
 bool APlayerCharacter::Server_Attack_Validate(FVector Start, FVector Dir)
@@ -243,23 +324,13 @@ bool APlayerCharacter::Server_Attack_Validate(FVector Start, FVector Dir)
 
 void APlayerCharacter::Server_Attack_Implementation(FVector Start, FVector Dir)
 {
+
 	FHitResult Hit;
+	const bool bHit = DoLineTraceFromAxe(Hit);
 
-	if (DoLineTrace(Hit, Start, Dir))
+	if (AT5GameMode* GM = Cast<AT5GameMode>(GetWorld()->GetAuthGameMode()))
 	{
-		AActor* HitActor = Hit.GetActor();
-
-		if (AT5GameMode* GM = Cast<AT5GameMode>(GetWorld()->GetAuthGameMode()))
-		{
-			GM->ProcessAttack(GetController(), HitActor);
-		}
-	}
-	else
-	{
-		if (AT5GameMode* GM = Cast<AT5GameMode>(GetWorld()->GetAuthGameMode()))
-		{
-			GM->ProcessAttack(GetController(), nullptr);
-		}
+		GM->ProcessAttack(GetController(), bHit ? Hit.GetActor() : nullptr);
 	}
 }
 
@@ -281,6 +352,7 @@ bool APlayerCharacter::DoLineTrace(FHitResult& OutHit, FVector Start, FVector Di
 
 void APlayerCharacter::OnDeath()
 {
+
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
@@ -288,4 +360,74 @@ void APlayerCharacter::OnDeath()
 	{
 		GM->ProcessActorDeath(this, nullptr);
 	}
+	SetLifeSpan(5.0f);
+}
+
+bool APlayerCharacter::DoLineTraceFromAxe(FHitResult& OutHit) const
+{
+	if (!Axe) return false;
+
+	UE_LOG(LogTemp, Warning, TEXT("AxeTrace called on %s | HasAuthority=%d | LocallyControlled=%d | Axe=%s"),
+		HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT"),
+		HasAuthority(),
+		IsLocallyControlled(),
+		Axe ? *Axe->GetName() : TEXT("NULL"));
+
+	UStaticMeshComponent* Axe_Mesh = Axe->GetAxeMesh();
+	if (!Axe_Mesh) return false;
+
+	FVector Start;
+	FRotator Rot;
+
+	if (Axe_Mesh->DoesSocketExist(TEXT("TraceStart")))
+	{
+		Start = Axe_Mesh->GetSocketLocation(TEXT("TraceStart"));
+		Rot = Axe_Mesh->GetSocketRotation(TEXT("TraceStart"));
+	}
+	else
+	{
+		Start = Axe_Mesh->GetComponentLocation();
+		Rot = Axe_Mesh->GetComponentRotation();
+	}
+
+	const FRotator YawOnly(0.f, GetActorRotation().Yaw, 0.f);
+	const FVector End = Start + YawOnly.Vector() * TraceDistance;
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(AxeTrace), true);
+	Params.AddIgnoredActor(this);
+	Params.AddIgnoredActor(Axe);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		OutHit, Start, End, ECC_Visibility, Params
+	);
+
+	DrawDebugLine(
+		GetWorld(),
+		Start,
+		End,
+		bHit ? FColor::Red : FColor::Green,
+		false,
+		1.0f,
+		0,
+		2.0f
+	);
+
+	return bHit;
+}
+
+void APlayerCharacter::HandleAttackStartNotify()
+{
+	// 로컬만 서버 RPC 쏘기 (너 기존 의도 유지)
+	if (!IsLocallyControlled()) return;
+	if (!Controller) return;
+
+	// (디버그용) 로컬에서 선 그리기 - 원하면 유지/삭제
+	FHitResult Dummy;
+	DoLineTraceFromAxe(Dummy);
+
+	// 서버 공격 요청
+	FVector Start; FRotator Rot;
+	Controller->GetPlayerViewPoint(Start, Rot);
+	Server_Attack(Start, Rot.Vector());
+
 }

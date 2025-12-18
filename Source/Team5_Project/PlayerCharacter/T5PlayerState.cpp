@@ -6,7 +6,6 @@
 
 AT5PlayerState::AT5PlayerState()
 {
-    // 변수 초기화
     CurrentRole = EPlayerRole::Waiting; 
     CurrentHP = 100.0f;
     bReplicates = true;
@@ -16,14 +15,19 @@ void AT5PlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     
-    // 변수 동기화 등록
     DOREPLIFETIME(AT5PlayerState, CurrentRole);
     DOREPLIFETIME(AT5PlayerState, CurrentHP);
 }
 
 void AT5PlayerState::OnRep_CurrentRole()
 {
-    
+    if (APawn* MyPawn = GetPawn())
+    {
+        if (APlayerCharacter* MyChar = Cast<APlayerCharacter>(MyPawn))
+        {
+            MyChar->UpdateCharacterMesh(CurrentRole);
+        }
+    }
 }
 
 void AT5PlayerState::SetPlayerRole(EPlayerRole NewRole)
@@ -37,7 +41,6 @@ void AT5PlayerState::SetPlayerRole(EPlayerRole NewRole)
 
 void AT5PlayerState::ApplyDamage(float Amount)
 {
-    // 서버에서만 로직 수행
     if (GetLocalRole() == ROLE_Authority)
     {
         CurrentHP -= Amount;
@@ -45,6 +48,5 @@ void AT5PlayerState::ApplyDamage(float Amount)
         {
             CurrentHP = 0.0f;
         }
-
     }
 }

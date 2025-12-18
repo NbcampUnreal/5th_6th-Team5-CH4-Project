@@ -6,9 +6,11 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
+#include "T5PlayerState.h"
 #include "InputActionValue.h"
 #include "Engine/EngineTypes.h"
 #include "TimerManager.h"
+#include "Animation/AnimMontage.h"
 #include "PlayerCharacter.generated.h"
 
 class UTeam5_DamageTakenComponent;
@@ -22,9 +24,23 @@ public:
 	// Sets default values for this character's properties
 	APlayerCharacter();
 
+	void UpdateCharacterMesh(EPlayerRole NewRole);
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Appearance")
+	USkeletalMesh* HunterMesh;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Appearance")
+	TSubclassOf<UAnimInstance> HunterAnimBP;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Appearance")
+	USkeletalMesh* AnimalMesh;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Appearance")
+	TSubclassOf<UAnimInstance> AnimalAnimBP;
 
 public:	
 	// Called every frame
@@ -36,6 +52,9 @@ public:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_Attack(FVector Start, FVector Dir);
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DamageComp")
+	UTeam5_DamageTakenComponent* DamageTakenComponent;
+
 protected:
 	UPROPERTY(EditAnywhere)
 	class USpringArmComponent* SpringArm;
@@ -43,8 +62,8 @@ protected:
 	UPROPERTY(EditAnywhere)
 	class UCameraComponent* Camera;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
-	UTeam5_DamageTakenComponent* DamageComp;
+	/*UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+	UTeam5_DamageTakenComponent* DamageComp;*/
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Input")
@@ -74,7 +93,7 @@ private:
 	void OnDeath();
 
 	UPROPERTY(EditAnywhere, Category = "Trace")
-	float TraceDistance = 350.f;
+	float TraceDistance = 50.f;
 
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	float AttackTraceDelay = 0.22f;
@@ -105,8 +124,24 @@ private:
 	FVector CachedAttackStartLoc = FVector::ZeroVector;
 	FVector CachedAttackShootDir = FVector::ForwardVector;
 
+	bool DoLineTraceFromAxe(FHitResult& OutHit) const;
+
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+
+	UPROPERTY(EditDefaultsOnly, Category = "Attack")
+	FName AttackStartNotifyName = "AttackStart";
+
+	// 몽타주(에디터에서 지정)
+	UPROPERTY(EditDefaultsOnly, Category = "Attack")
+	UAnimMontage* AttackMontage = nullptr;
+
+	// (선택) 타이밍 캐시로 쓸 거면 유지
+	float AttackStartTime = -1.f;
+	bool bAttackStartFired = false;
+
+	UFUNCTION()
+	void HandleAttackStartNotify();
 	
 private:
 	//에디터에서 선택할 수 있도록 설정
