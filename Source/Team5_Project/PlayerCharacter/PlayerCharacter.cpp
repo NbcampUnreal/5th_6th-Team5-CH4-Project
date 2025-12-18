@@ -8,11 +8,13 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include <Kismet/KismetMathLibrary.h>
-
 #include "Axe.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Kismet/GameplayStatics.h"
+#include "T5GameMode/T5GameMode.h"
+#include "AI/Team5_DamageTakenComponent.h"
+#include "Components/CapsuleComponent.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -47,6 +49,8 @@ APlayerCharacter::APlayerCharacter()
 		Camera->SetupAttachment(SpringArm);
 		Camera->bUsePawnControlRotation = false;
 	}
+
+	DamageComp = CreateDefaultSubobject<UTeam5_DamageTakenComponent>(TEXT("DamageTakenComponent"));
 
 	static ConstructorHelpers::FObjectFinder<UInputMappingContext> InputContext(TEXT("/Script/EnhancedInput.InputMappingContext'/Game/KNC_Chatacter/Input/IMC_DefaultInput.IMC_DefaultInput'"));
 	if (InputContext.Succeeded())
@@ -103,6 +107,16 @@ void APlayerCharacter::BeginPlay()
 
 	GetCharacterMovement()->MaxWalkSpeed = 600;
 
+	DamageComp = FindComponentByClass<UTeam5_DamageTakenComponent>();
+	if (DamageComp)
+	{
+		DamageComp->OnDeathDelegate.AddDynamic(this, &APlayerCharacter::OnDeath);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("오류: 캐릭터에 DamageTakenComponent가 없습니다! 블루프린트에서 추가해주세요."));
+	}
+
 	//Axe를 가지고 와서 SkeletonMesh의 RightHandSocket에 붙히고 PlayerController에서 사용할 수 있도록 설정
 	if (AxeClass)
 	{
@@ -128,6 +142,20 @@ void APlayerCharacter::Tick(float DeltaTime)
 	if (GetCharacterMovement())
 	{
 		bIsFalling = GetCharacterMovement()->IsFalling();
+	}
+
+	if (bIsAttacking && Controller)
+	{
+		FRotator TargetRot(0.f, AttackLockedYaw, 0.f);
+
+		FRotator NewRot = FMath::RInterpTo(
+			GetActorRotation(),
+			TargetRot,
+			DeltaTime,
+			AttackTurnSpeed
+		);
+
+		SetActorRotation(NewRot);
 	}
 }
 
@@ -178,8 +206,11 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 		12.f
 	);
 
-	SetActorRotation(NewRot);
-	GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+	if (!bIsAttacking)
+	{
+		SetActorRotation(NewRot);
+		GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+	}
 }
 
 void APlayerCharacter::Look(const FInputActionValue& Value)
@@ -190,53 +221,71 @@ void APlayerCharacter::Look(const FInputActionValue& Value)
 	AddControllerYawInput(LookAxisVector.X * GetWorld()->DeltaRealTimeSeconds * mouseSpeed);
 }
 
-bool APlayerCharacter::DoLineTrace(FHitResult& OutHit) const
+void APlayerCharacter::Attack(const struct FInputActionValue& Value)
 {
-	if (!Controller) return false;
+	UE_LOG(LogTemp, Warning, TEXT("공격 버튼 눌림!"));
 
-	const FVector Start = GetMesh()->GetComponentLocation() + FVector(0.f, 0.f, 50.f);
-	const FVector End = Start + GetActorForwardVector() * TraceDistance;
+	if (Controller)
+	{
+		FVector Start, Dir;
+		FRotator Rot;
+		Controller->GetPlayerViewPoint(Start, Rot);
+		Dir = Rot.Vector();
+
+		Server_Attack(Start, Dir);
+	}
+}
+
+bool APlayerCharacter::Server_Attack_Validate(FVector Start, FVector Dir)
+{
+	return true;
+}
+
+void APlayerCharacter::Server_Attack_Implementation(FVector Start, FVector Dir)
+{
+	FHitResult Hit;
+
+	if (DoLineTrace(Hit, Start, Dir))
+	{
+		AActor* HitActor = Hit.GetActor();
+
+		if (AT5GameMode* GM = Cast<AT5GameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			GM->ProcessAttack(GetController(), HitActor);
+		}
+	}
+	else
+	{
+		if (AT5GameMode* GM = Cast<AT5GameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			GM->ProcessAttack(GetController(), nullptr);
+		}
+	}
+}
+
+bool APlayerCharacter::DoLineTrace(FHitResult& OutHit, FVector Start, FVector Dir) const
+{
+	const FVector End = Start + (Dir * TraceDistance);
 
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(PlayerTrace), true);
 	Params.AddIgnoredActor(this);
 
 	const bool bHit = GetWorld()->LineTraceSingleByChannel(
-		OutHit,
-		Start,
-		End,
-		ECC_Visibility,
-		Params
+		OutHit, Start, End, ECC_Visibility, Params
 	);
 
 	DrawDebugLine(GetWorld(), Start, End, bHit ? FColor::Red : FColor::Green, false, 1.0f, 0, 1.5f);
 
-	if (bHit)
-	{
-		DrawDebugSphere(GetWorld(), OutHit.ImpactPoint, 8.f, 12, FColor::Red, false, 1.0f);
-	}
-
 	return bHit;
 }
 
-void APlayerCharacter::Attack(const struct FInputActionValue& Value)
+void APlayerCharacter::OnDeath()
 {
-	// 1. 로그로 작동 확인
-	UE_LOG(LogTemp, Warning, TEXT("공격 버튼 눌림!"));
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	FHitResult Hit;
-	if (DoLineTrace(Hit))
+	if (AT5GameMode* GM = Cast<AT5GameMode>(GetWorld()->GetAuthGameMode()))
 	{
-		AActor* HitActor = Hit.GetActor();
-		if (HitActor)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Hit Actor: %s | Point: %s"),
-				*HitActor->GetName(),
-				*Hit.ImpactPoint.ToString()
-			);
-		}
+		GM->ProcessActorDeath(this, nullptr);
 	}
-	// 2. 공격 애니메이션 실행 (나중에 추가)
-    
-	// 3. 공격 판정 로직 (나중에 여기에 Raycast 등을 넣어서 GameMode->ProcessAttack 호출)
-	
 }

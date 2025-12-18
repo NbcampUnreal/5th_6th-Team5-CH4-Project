@@ -37,6 +37,9 @@ public:
     UPROPERTY(Replicated, BlueprintReadOnly)
     float CurrentHP;
 
+    UPROPERTY(Replicated, BlueprintReadOnly)
+    FName CharacterID;
+
 protected:
     UFUNCTION()
     void OnRep_CurrentRole();
