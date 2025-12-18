@@ -4,25 +4,31 @@
 #include "Components/ActorComponent.h"
 #include "Team5_DamageTakenComponent.generated.h"
 
+// [추가] 방송을 위한 델리게이트 선언 매크로
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathDelegate);
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class TEAM5_PROJECT_API UTeam5_DamageTakenComponent : public UActorComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
-public:	
-	UTeam5_DamageTakenComponent();
+public: 
+    UTeam5_DamageTakenComponent();
+
+    // [추가] 외부에서 이 방송을 들을 수 있게 변수 선언
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnDeathDelegate OnDeathDelegate;
 
 protected:
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
 
-	UPROPERTY(editAnywhere, BlueprintReadWrite, Category = "HP")
-	float CurrentHP;
-	UPROPERTY(editAnywhere, BlueprintReadWrite, Category = "HP")
-	float MaxHP;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HP")
-	bool bIsAlive;
+    UPROPERTY(editAnywhere, BlueprintReadWrite, Category = "HP")
+    float CurrentHP;
+    UPROPERTY(editAnywhere, BlueprintReadWrite, Category = "HP")
+    float MaxHP;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HP")
+    bool bIsAlive;
 
-	UFUNCTION()
-	void OnDamageTaken(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy,
-					   AActor* DamageCauser);
+    UFUNCTION()
+    void OnDamageTaken(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
 };
