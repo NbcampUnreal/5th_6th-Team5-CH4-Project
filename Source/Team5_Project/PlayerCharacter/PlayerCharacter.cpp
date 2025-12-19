@@ -17,6 +17,7 @@
 #include "AI/Team5_DamageTakenComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "PlayerCharacter/PlayerCharacterAnimInstance.h"
+#include "Net/UnrealNetwork.h"
 #include "Components/StaticMeshComponent.h"
 
 // Sets default values
@@ -24,6 +25,8 @@ APlayerCharacter::APlayerCharacter()
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	bReplicates = true;
 
 	bUseControllerRotationYaw = false;
 
@@ -108,9 +111,9 @@ void APlayerCharacter::BeginPlay()
 	auto* MoveComp = GetCharacterMovement();
 	if (MoveComp)
 	{
-		MoveComp->bOrientRotationToMovement = false;
+		MoveComp->bOrientRotationToMovement = true;
 		MoveComp->bUseControllerDesiredRotation = false;
-		MoveComp->RotationRate = FRotator(0.f, 0.f, 0.f);
+		MoveComp->RotationRate = FRotator(0.f, 500.f, 0.f);
 	}
 
 
@@ -127,19 +130,24 @@ void APlayerCharacter::BeginPlay()
 	}
 
 	//Axe를 가지고 와서 SkeletonMesh의 RightHandSocket에 붙히고 PlayerController에서 사용할 수 있도록 설정
-	if (AxeClass)
+	if (HasAuthority() && AxeClass)
 	{
 		Axe = GetWorld()->SpawnActor<AAxe>(AxeClass);
-
 		if (Axe)
 		{
 			Axe->SetOwner(this);
 			Axe->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("RightHandSocket"));
 		}
-		if (APlayerController* PC = Cast<APlayerController>(GetController()))
-		{
-			Axe->OwnerController = PC;
-		}
+	}
+
+	// 서버는 이미 붙였지만, 리슨서버/싱글에서도 OnRep 호출 안 될 수 있어서 안전하게 한 번 호출
+	if (!HasAuthority())
+	{
+		// 클라는 복제 받은 뒤 OnRep_Axe가 자동으로 호출됨
+	}
+	else
+	{
+		OnRep_Axe(); // 서버에서도 OwnerController 세팅 같은 거 해주고 싶으면
 	}
 
 	if (AT5PlayerState* PS = GetPlayerState<AT5PlayerState>())
@@ -222,6 +230,11 @@ void APlayerCharacter::Tick(float DeltaTime)
 			AttackTurnSpeed
 		);
 
+		if (HasAuthority())
+		{
+			SetActorRotation(NewRot);
+		}
+
 		SetActorRotation(NewRot);
 	}
 }
@@ -259,25 +272,6 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 	AddMovementInput(Forward, Movement.Y);
 	AddMovementInput(Right, Movement.X);
 
-	const FVector MoveDir = (Forward * Movement.Y + Right * Movement.X).GetSafeNormal();
-
-	float TargetYaw = MoveDir.Rotation().Yaw;
-
-	const FRotator CurrentRot = GetActorRotation();
-	const FRotator TargetRot(0.f, TargetYaw, 0.f);
-
-	const FRotator NewRot = FMath::RInterpTo(
-		CurrentRot,
-		TargetRot,
-		GetWorld()->GetDeltaSeconds(),
-		12.f
-	);
-
-	if (!bIsAttacking)
-	{
-		SetActorRotation(NewRot);
-		GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-	}
 }
 
 void APlayerCharacter::Look(const FInputActionValue& Value)
@@ -315,6 +309,12 @@ void APlayerCharacter::Attack(const struct FInputActionValue& Value)
 		AttackFaceHoldTime,
 		false
 	);
+
+	const float Yaw = Controller
+		? Controller->GetControlRotation().Yaw
+		: GetActorRotation().Yaw;
+
+	Server_StartAttackSync(Yaw);
 }
 
 bool APlayerCharacter::Server_Attack_Validate(FVector Start, FVector Dir)
@@ -390,8 +390,11 @@ bool APlayerCharacter::DoLineTraceFromAxe(FHitResult& OutHit) const
 		Rot = Axe_Mesh->GetComponentRotation();
 	}
 
-	const FRotator YawOnly(0.f, GetActorRotation().Yaw, 0.f);
-	const FVector End = Start + YawOnly.Vector() * TraceDistance;
+	FVector Dir = Rot.Vector();
+	Dir.Z = 0.f;
+	Dir.Normalize();
+	const FVector End = Start + Dir * TraceDistance;
+
 
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(AxeTrace), true);
 	Params.AddIgnoredActor(this);
@@ -417,17 +420,66 @@ bool APlayerCharacter::DoLineTraceFromAxe(FHitResult& OutHit) const
 
 void APlayerCharacter::HandleAttackStartNotify()
 {
-	// 로컬만 서버 RPC 쏘기 (너 기존 의도 유지)
 	if (!IsLocallyControlled()) return;
 	if (!Controller) return;
 
-	// (디버그용) 로컬에서 선 그리기 - 원하면 유지/삭제
-	FHitResult Dummy;
-	DoLineTraceFromAxe(Dummy);
+	/*FHitResult Dummy;
+	DoLineTraceFromAxe(Dummy);*/
 
-	// 서버 공격 요청
 	FVector Start; FRotator Rot;
 	Controller->GetPlayerViewPoint(Start, Rot);
 	Server_Attack(Start, Rot.Vector());
+}
 
+void APlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(APlayerCharacter, Axe);
+	DOREPLIFETIME(APlayerCharacter, bIsAttacking);
+	DOREPLIFETIME(APlayerCharacter, AttackLockedYaw);
+}
+
+void APlayerCharacter::OnRep_Axe()
+{
+	if (!Axe) return;
+
+	// 클라에서 복제된 Axe를 내 Mesh에 부착
+	Axe->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("RightHandSocket"));
+
+	// 컨트롤러 참조 세팅 (로컬 컨트롤러가 있을 때만)
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		Axe->OwnerController = PC;
+	}
+}
+
+void APlayerCharacter::Server_StartAttackSync_Implementation(float InLockedYaw)
+{
+	AttackLockedYaw = InLockedYaw;
+	bIsAttacking = true;
+
+	Multicast_PlayAttackMontage();
+
+	GetWorldTimerManager().ClearTimer(AttackFaceOffTimerHandle);
+	GetWorldTimerManager().SetTimer(
+		AttackFaceOffTimerHandle,
+		[this]() { bIsAttacking = false; },
+		AttackFaceHoldTime,
+		false
+	);
+}
+
+void APlayerCharacter::Multicast_PlayAttackMontage_Implementation()
+{
+	// 로컬에서 이미 재생했다면 중복 방지(선택)
+	if (IsLocallyControlled()) return;
+
+	if (UAnimInstance* Anim = GetMesh()->GetAnimInstance())
+	{
+		if (AttackMontage)
+		{
+			Anim->Montage_Play(AttackMontage);
+		}
+	}
 }
