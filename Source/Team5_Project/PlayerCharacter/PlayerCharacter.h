@@ -55,6 +55,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DamageComp")
 	UTeam5_DamageTakenComponent* DamageTakenComponent;
 
+
+
 protected:
 	UPROPERTY(EditAnywhere)
 	class USpringArmComponent* SpringArm;
@@ -93,13 +95,13 @@ private:
 	void OnDeath();
 
 	UPROPERTY(EditAnywhere, Category = "Trace")
-	float TraceDistance = 50.f;
+	float TraceDistance = 150.f;
 
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	float AttackTraceDelay = 0.22f;
 
 	FTimerHandle AttackTraceTimerHandle;
-
+	UPROPERTY(Replicated)
 	bool bIsAttacking = false;
 
 	UPROPERTY(EditAnywhere, Category = "Attack")
@@ -108,8 +110,14 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	float AttackFaceHoldTime = 0.25f;
 
-	UPROPERTY(VisibleAnywhere, Category = "Attack")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "Attack")
 	float AttackLockedYaw = 0.f;
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayAttackMontage();
+
+	UFUNCTION(Server, Reliable)
+	void Server_StartAttackSync(float InLockedYaw);
 
 	UFUNCTION()
 	void Attack(const FInputActionValue& Value);
@@ -142,12 +150,17 @@ private:
 
 	UFUNCTION()
 	void HandleAttackStartNotify();
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	
 private:
 	//에디터에서 선택할 수 있도록 설정
 	UPROPERTY(EditDefaultsOnly, Category = "Axe")
 	TSubclassOf<class AAxe> AxeClass;
 	
-	UPROPERTY()
+	UPROPERTY(ReplicatedUsing = OnRep_Axe)
 	AAxe* Axe = nullptr;
+
+	UFUNCTION()
+	void OnRep_Axe();
 };

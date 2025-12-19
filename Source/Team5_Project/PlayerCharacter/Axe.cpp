@@ -3,6 +3,7 @@
 AAxe::AAxe()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	bReplicates = true;
 
 	Axe_Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Axe"));
 	Axe_Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
