@@ -1,9 +1,10 @@
 #include "T5PlayerController.h"
 #include "T5GameMode/T5GameMode.h"
 #include "T5PlayerState.h"
-#include "GameFramework/Character.h" // Ãß°¡
-#include "GameFramework/CharacterMovementComponent.h" // Ãß°¡
-#include "Kismet/GameplayStatics.h" // Ãß°¡
+
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
 #include "DrawDebugHelpers.h"
@@ -31,15 +32,13 @@ void AT5PlayerController::Client_PrivateMessage_Implementation(const FString& Ms
     }
 }
 
-/*void AT5PlayerController::Client_OnGameOver_Implementation(EWinningTeam Winner)
+void AT5PlayerController::Client_OnGameOver_Implementation(EWinningTeam Winner)
 {
-    // 1. Ä³¸¯ÅÍ ¿òÁ÷ÀÓ Á¤Áö
+    // 1. ìºë¦­í„° ì¡°ì‘ ì •ì§€
     if (APawn* MyPawn = GetPawn())
     {
-        // ÀÔ·Â Â÷´Ü
-        MyPawn->DisableInput(this);
+        MyPawn->DisableInput(this); // ì…ë ¥ ì°¨ë‹¨
 
-        // ÀÌµ¿ ÄÄÆ÷³ÍÆ® °­Á¦ Á¤Áö
         if (ACharacter* MyChar = Cast<ACharacter>(MyPawn))
         {
             if (MyChar->GetCharacterMovement())
@@ -50,13 +49,11 @@ void AT5PlayerController::Client_PrivateMessage_Implementation(const FString& Ms
         }
     }
 
-    // 2. ¸¶¿ì½º Ä¿¼­ º¸ÀÌ°Ô ÇÏ±â (UI Á¶ÀÛ¿ë)
+    // 2. ë§ˆìš°ìŠ¤ ì»¤ì„œ ë³´ì´ê¸°
     bShowMouseCursor = true;
     SetInputMode(FInputModeUIOnly());
 
-    // 3. °á°ú ·Î±× Ãâ·Â
-    FString WinStr = (Winner == EWinningTeam::Hunter) ? TEXT("¼ú·¡ ½Â¸®!") : TEXT("µµ¸ÁÀÚ ½Â¸®!");
-    UE_LOG(LogTemp, Warning, TEXT(">>> [°ÔÀÓ Á¾·á] %s <<<"), *WinStr);
-
-    // [Âü°í] ³ªÁß¿¡ ¿©±â¼­ À§Á¬(WBP_Result)À» ¶ç¿ì´Â ÄÚµå¸¦ Ãß°¡ÇÏ¸é µË´Ï´Ù.
-}*/
+    // 3. ê²°ê³¼ ë¡œê·¸ (ë‚˜ì¤‘ì— WBP_Result ìœ„ì ¯ ë„ìš°ëŠ” ê³³)
+    FString WinStr = (Winner == EWinningTeam::Hunter) ? TEXT("ìˆ ë˜ ìŠ¹ë¦¬!") : TEXT("ë„ë§ì ìŠ¹ë¦¬!");
+    UE_LOG(LogTemp, Warning, TEXT(">>> [ê²Œì„ ì¢…ë£Œ] %s <<<"), *WinStr);
+};

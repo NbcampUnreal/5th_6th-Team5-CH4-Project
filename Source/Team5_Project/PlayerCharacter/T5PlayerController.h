@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "T5PlayerState.h"
-//#include "T5GameMode/T5GameState.h"
+#include "T5GameMode/T5GameState.h"
 #include "T5PlayerController.generated.h"
 
 UCLASS()
@@ -18,7 +18,7 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_PrivateMessage(const	 FString& Msg, FColor Color, int32 Key = -1);
 
-	/*UFUNCTION(Client, Reliable)
-	void Client_OnGameOver(EWinningTeam WinningTeam);*/
+	UFUNCTION(Client, Reliable)
+	void Client_OnGameOver(EWinningTeam WinningTeam);
 	
 };
