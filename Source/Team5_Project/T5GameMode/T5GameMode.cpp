@@ -36,7 +36,7 @@ void AT5GameMode::PostLogin(APlayerController* NewPlayer)
         UE_LOG(LogTemp, Log, TEXT(">>> [접속] %s <<<"), *PS->GetPlayerName());
     }
 
-    // 2명 이상이면 카운트다운 시작
+    // [테스트 팁] 혼자 테스트하려면 아래 숫자를 1로 바꾸세요. (평소엔 2)
     if (GetNumPlayers() >= 2) 
     {
         GetWorldTimerManager().ClearTimer(TimerHandle_LobbyWait);
@@ -141,7 +141,7 @@ void AT5GameMode::GameTimerTick()
 }
 
 // ---------------------------------------------------------
-// 3. 공격 처리 (Data-Driven 핵심)
+// 3. 공격 처리 (버그 수정 완료된 버전)
 // ---------------------------------------------------------
 void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
 {
@@ -152,10 +152,31 @@ void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
     APawn* AttackerPawn = AttackerPC->GetPawn();
     UTeam5_DamageTakenComponent* HunterHPComp = AttackerPawn ? AttackerPawn->FindComponentByClass<UTeam5_DamageTakenComponent>() : nullptr;
     
-    // A. 허공 공격 (패널티)
-    if (VictimActor == nullptr)
+    // -------------------------------------------------------
+    // [1단계] 주인이 누구인지 찾기 (무기나 장식품을 때렸을 때 대비)
+    // -------------------------------------------------------
+    AActor* FinalVictim = VictimActor;
+    APawn* VictimPawn = Cast<APawn>(FinalVictim);
+
+    int32 LoopGuard = 0;
+    while (FinalVictim && !VictimPawn && LoopGuard < 5)
     {
-        if (AttackerPawn)
+        AActor* Parent = FinalVictim->GetOwner();
+        if (Parent)
+        {
+            FinalVictim = Parent;
+            VictimPawn = Cast<APawn>(FinalVictim);
+        }
+        else break;
+        LoopGuard++;
+    }
+
+    // -------------------------------------------------------
+    // [2단계] 허공/벽 판정 (Pawn을 못 찾음) -> 술래 패널티
+    // -------------------------------------------------------
+    if (!VictimPawn)
+    {
+         if (AttackerPawn)
         {
             // 술래에게 데미지 적용
             UGameplayStatics::ApplyDamage(AttackerPawn, 10.0f, AttackerPC, AttackerPawn, UDamageType::StaticClass());
@@ -164,7 +185,7 @@ void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
             if (HunterHPComp)
             {
                 float CurrentHP = HunterHPComp->GetCurrentHP();
-                UE_LOG(LogTemp, Warning, TEXT("    -> 술래 현재 HP: %.1f"), CurrentHP);
+                UE_LOG(LogTemp, Warning, TEXT("    -> [허공/벽] 술래 패널티 HP: %.1f"), CurrentHP);
 
                 if (CurrentHP <= 0.0f)
                 {
@@ -175,78 +196,53 @@ void AT5GameMode::ProcessAttack(AController* Attacker, AActor* VictimActor)
         return;
     }
 
-    // B. 데이터 테이블(룰북)에서 공격력 조회
-    float DamageToApply = 50.0f; // 기본값 (테이블 없을 때 대비)
-
+    // -------------------------------------------------------
+    // [3단계] 공격력 조회 (룰북)
+    // -------------------------------------------------------
+    float DamageToApply = 50.0f; // 기본값
     if (AT5PlayerState* AttackerPS = AttackerPC->GetPlayerState<AT5PlayerState>())
     {
         if (StatDataTable)
         {
             static const FString ContextString(TEXT("StatLookUp"));
-            // 플레이어 스테이트에 있는 CharacterID("Hunter")로 검색
             FCharacterStatRow* Row = StatDataTable->FindRow<FCharacterStatRow>(AttackerPS->CharacterID, ContextString);
-            
-            if (Row)
-            {
-                DamageToApply = Row->BaseDamage; // 룰북 값 가져오기
-            }
+            if (Row) DamageToApply = Row->BaseDamage; 
         }
     }
 
-    // C. 명령 하달 (ApplyDamage)
-    // AI 함정인지, 진짜 도망자인지는 여기서 구분하지 않고 일단 때림
-    // 단, AI 함정 로직(술래 패널티)이 필요하다면 여기서 체크
-    
-    if (APawn* VictimPawn = Cast<APawn>(VictimActor))
-    {
-        AController* VictimController = VictimPawn->GetController();
-        UTeam5_DamageTakenComponent* VictimHPComp = VictimPawn->FindComponentByClass<UTeam5_DamageTakenComponent>();
+    // -------------------------------------------------------
+    // [4단계] 대상별 피해 적용 (중복 로직 삭제됨)
+    // -------------------------------------------------------
+    AController* VictimController = VictimPawn->GetController();
         
-        // AI(함정) 체크
-        if (VictimController && !VictimController->IsPlayerController())
-        {
-            UE_LOG(LogTemp, Error, TEXT("[함정] AI 공격! (술래 HP -30)"));
-            // 술래에게 패널티
-            UGameplayStatics::ApplyDamage(AttackerPC->GetPawn(), 30.0f, AttackerPC, nullptr, UDamageType::StaticClass());
+    // (A) AI(함정) 타격
+    if (VictimController && !VictimController->IsPlayerController())
+    {
+        UE_LOG(LogTemp, Error, TEXT(">>> [함정] AI(%s) 타격! (술래 -30)"), *VictimActor->GetName());
+    
+        // 1. 술래 패널티
+        UGameplayStatics::ApplyDamage(AttackerPawn, 30.0f, AttackerPC, nullptr, UDamageType::StaticClass());
+        
+        // 2. AI 제거 (즉사)
+        UGameplayStatics::ApplyDamage(VictimActor, 9999.0f, AttackerPC, nullptr, UDamageType::StaticClass());
 
-            // (1) AI(함정) 타격
-            // 주의: AI인데 컨트롤러가 없으면 이 조건문이 제대로 동작 안 할 수 있음. 
-            // 확실한 AI 판단을 위해 'IsPlayerController'가 아닌 경우를 체크
-            if (VictimController && !VictimController->IsPlayerController())
-            {
-                UE_LOG(LogTemp, Error, TEXT(">>> [함정] AI(%s) 타격! (술래 -30)"), *VictimActor->GetName());
-            
-                UGameplayStatics::ApplyDamage(AttackerPawn, 30.0f, AttackerPC, nullptr, UDamageType::StaticClass());
-                UGameplayStatics::ApplyDamage(VictimActor, 9999.0f, AttackerPC, nullptr, UDamageType::StaticClass());
-
-                if (HunterHPComp && HunterHPComp->GetCurrentHP() <= 0.0f) 
-                    UE_LOG(LogTemp, Error, TEXT(">>> 술래 사망 (패배) <<<"));
-            }
-        }
-        // (2) 도망자(플레이어) 타격
-        else if (VictimController && VictimController->IsPlayerController())
-        {
-            UE_LOG(LogTemp, Display, TEXT(">>> [적중] 도망자(%s) 타격! (데미지 %.1f)"), *VictimActor->GetName(), DamageToApply);
-            UGameplayStatics::ApplyDamage(VictimActor, DamageToApply, AttackerPC, nullptr, UDamageType::StaticClass());
-
-            if (VictimHPComp)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("    -> 도망자 남은 HP: %.1f"), VictimHPComp->GetCurrentHP());
-                if (VictimHPComp->GetCurrentHP() <= 0.0f) UE_LOG(LogTemp, Error, TEXT(">>> 도망자 검거 완료 <<<"));
-            }
-        }
-        // (3) Pawn이긴 한데 컨트롤러가 없음 (예: 배치만 해두고 실행 안 된 AI)
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("[주의] 캐릭터(%s)를 때렸는데 컨트롤러가 없습니다. (단순 오브젝트 취급)"), *VictimActor->GetName());
-            // 일단 데미지는 줘본다
-            UGameplayStatics::ApplyDamage(VictimActor, DamageToApply, AttackerPC, nullptr, UDamageType::StaticClass());
-        }
+        // 술래 사망 체크
+        if (HunterHPComp && HunterHPComp->GetCurrentHP() <= 0.0f) 
+            UE_LOG(LogTemp, Error, TEXT(">>> 술래 사망 (패배) <<<"));
     }
-    // Pawn이 아님 (무기, 벽, 바닥 등)
+    // (B) 도망자(플레이어) 타격
+    else if (VictimController && VictimController->IsPlayerController())
+    {
+        UE_LOG(LogTemp, Display, TEXT(">>> [적중] 도망자(%s) 타격! (데미지 %.1f)"), *VictimActor->GetName(), DamageToApply);
+        
+        // 도망자에게 데미지
+        UGameplayStatics::ApplyDamage(VictimActor, DamageToApply, AttackerPC, nullptr, UDamageType::StaticClass());
+    }
+    // (C) 컨트롤러 없는 Pawn (단순 배치된 봇 등)
     else
     {
-        UE_LOG(LogTemp, Log, TEXT("[무효] 타격된 물체는 캐릭터가 아닙니다: %s"), *VictimActor->GetName());
+        UE_LOG(LogTemp, Warning, TEXT("[주의] 컨트롤러 없는 Pawn(%s) 타격"), *VictimActor->GetName());
+        UGameplayStatics::ApplyDamage(VictimActor, DamageToApply, AttackerPC, nullptr, UDamageType::StaticClass());
     }
 }
 
@@ -279,17 +275,28 @@ void AT5GameMode::ProcessActorDeath(AActor* Victim, AController* Killer)
     }
 }
 
+// ---------------------------------------------------------
+// 5. 게임 종료 처리
+// ---------------------------------------------------------
 void AT5GameMode::FinishGame(bool bHunterWin)
 {
     AT5GameState* GS = GetGameState<AT5GameState>();
-    if (GS) GS->CurrentMatchState = EMatchState::GameOver;
+    if (!GS) return;
 
-    if (bHunterWin)
+    // 이미 종료되었으면 무시
+    if (GS->CurrentMatchState == EMatchState::GameOver) return;
+
+    GS->CurrentMatchState = EMatchState::GameOver;
+    GS->WinningTeam = bHunterWin ? EWinningTeam::Hunter : EWinningTeam::Animal;
+
+    UE_LOG(LogTemp, Warning, TEXT(">>> [종료] %s 승리! <<<"), bHunterWin ? TEXT("술래") : TEXT("도망자"));
+
+    // 모든 플레이어에게 종료 알림 (멈춰!)
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
     {
-        UE_LOG(LogTemp, Warning, TEXT(">>> [종료] 술래 승리! <<<"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT(">>> [종료] 도망자 승리! (시간 초과) <<<"));
+        if (AT5PlayerController* PC = Cast<AT5PlayerController>(It->Get()))
+        {
+            PC->Client_OnGameOver(GS->WinningTeam);
+        }
     }
 }
