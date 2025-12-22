@@ -21,4 +21,7 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_OnGameOver(EWinningTeam WinningTeam);
 	
+	UFUNCTION(BlueprintImplementableEvent)
+	void BP_OnRoleAssigned(EPlayerRole NewRole);
+	
 };

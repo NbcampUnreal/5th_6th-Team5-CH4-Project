@@ -21,7 +21,7 @@ void AT5PlayerController::Client_SetRole_Implementation(EPlayerRole NewRole)
         GetWorld()->GetTimerManager().SetTimer(WaitTimer, [this, NewRole]() { Client_SetRole(NewRole); }, 0.1f, false);
         return; 
     }
-
+    BP_OnRoleAssigned(NewRole);
 }
 
 void AT5PlayerController::Client_PrivateMessage_Implementation(const FString& Msg, FColor Color, int32 Key)
