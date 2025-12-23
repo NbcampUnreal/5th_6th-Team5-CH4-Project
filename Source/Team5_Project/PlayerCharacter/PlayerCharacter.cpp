@@ -30,14 +30,7 @@ APlayerCharacter::APlayerCharacter()
 
 	bUseControllerRotationYaw = false;
 
-	ConstructorHelpers::FObjectFinder<USkeletalMesh>PlayerMesh(TEXT("Script/Engine.SkeletalMesh'/Game/KNC_Chatacter/Character/Animations/Ch09_nonPBR.Ch09_nonPBR'"));
-
-	if (PlayerMesh.Succeeded())
-	{
-		GetMesh()->SetSkeletalMesh(PlayerMesh.Object);
-		GetMesh()->SetRelativeLocationAndRotation(FVector(0, 0, -90), FRotator(0, -90, 0));
-		GetMesh()->SetUsingAbsoluteRotation(false);
-	}
+	ConstructorHelpers::FObjectFinder<USkeletalMesh>PlayerMesh(TEXT(""));
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
 	if (SpringArm)
@@ -186,7 +179,7 @@ void APlayerCharacter::UpdateCharacterMesh(EPlayerRole NewRole)
 		GetMesh()->SetSkeletalMesh(NewMesh);
 
 		// GetMesh()->SetRelativeLocation(FVector(0, 0, -90)); 
-		// GetMesh()->SetRelativeRotation(FRotator(0, -90, 0));
+		// GetMesh()->SetRelativeRotation(FRotator(0, -90, 0));;
 	}
 
 	if (NewAnimBP && GetMesh())
@@ -298,6 +291,8 @@ void APlayerCharacter::Attack(const struct FInputActionValue& Value)
 		}
 	}
 
+	
+
 	const FRotator ControlRot = Controller->GetControlRotation();
 	AttackLockedYaw = ControlRot.Yaw;
 	bIsAttacking = true;
@@ -390,9 +385,9 @@ bool APlayerCharacter::DoLineTraceFromAxe(FHitResult& OutHit) const
 		Rot = Axe_Mesh->GetComponentRotation();
 	}
 
-	FVector Dir = Rot.Vector();
-	Dir.Z = 0.f;
-	Dir.Normalize();
+	FRotator YawRot(0.f, AttackLockedYaw, 0.f);
+	FVector Dir = YawRot.Vector();
+
 	const FVector End = Start + Dir * TraceDistance;
 
 
@@ -454,8 +449,16 @@ void APlayerCharacter::OnRep_Axe()
 	}
 }
 
+bool APlayerCharacter::Server_StartAttackSync_Validate(float InLockedYaw)
+{
+	return true;
+}
+
 void APlayerCharacter::Server_StartAttackSync_Implementation(float InLockedYaw)
 {
+
+	UE_LOG(LogTemp, Warning, TEXT("[Server_StartAttackSync] Auth=%d Pawn=%s"), HasAuthority(), *GetName());
+
 	AttackLockedYaw = InLockedYaw;
 	bIsAttacking = true;
 
@@ -472,14 +475,29 @@ void APlayerCharacter::Server_StartAttackSync_Implementation(float InLockedYaw)
 
 void APlayerCharacter::Multicast_PlayAttackMontage_Implementation()
 {
-	// 로컬에서 이미 재생했다면 중복 방지(선택)
-	if (IsLocallyControlled()) return;
 
-	if (UAnimInstance* Anim = GetMesh()->GetAnimInstance())
+	UE_LOG(LogTemp, Warning, TEXT("[Multicast Fired] Local=%d Auth=%d Pawn=%s Montage=%s Anim=%s"),
+		IsLocallyControlled(),
+		HasAuthority(),
+		*GetName(),
+		*GetNameSafe(AttackMontage),
+		*GetNameSafe(GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
+	);
+
+	if (UAnimInstance* Anim = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
 	{
 		if (AttackMontage)
 		{
-			Anim->Montage_Play(AttackMontage);
+			// 중복 재생 방지(필요하면)
+			if (!Anim->Montage_IsPlaying(AttackMontage))
+			{
+				const float Len = Anim->Montage_Play(AttackMontage);
+				UE_LOG(LogTemp, Warning, TEXT("[Multicast Montage_Play] Len=%f Pawn=%s"), Len, *GetName());
+			}
 		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Multicast] AnimInstance NULL Pawn=%s"), *GetName());
 	}
 }

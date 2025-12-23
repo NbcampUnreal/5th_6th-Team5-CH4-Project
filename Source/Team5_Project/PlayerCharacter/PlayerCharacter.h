@@ -113,11 +113,11 @@ private:
 	UPROPERTY(VisibleAnywhere, Replicated, Category = "Attack")
 	float AttackLockedYaw = 0.f;
 
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_StartAttackSync(float InLockedYaw);
+
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_PlayAttackMontage();
-
-	UFUNCTION(Server, Reliable)
-	void Server_StartAttackSync(float InLockedYaw);
 
 	UFUNCTION()
 	void Attack(const FInputActionValue& Value);
