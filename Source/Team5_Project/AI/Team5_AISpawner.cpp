@@ -24,8 +24,10 @@ void ATeam5_AISpawner::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//게임 시작 후 한번 실행
-	SpawnAI();
+	if (HasAuthority()) 
+	{
+		SpawnAI();
+	}
 }
 
 void ATeam5_AISpawner::SpawnAI()

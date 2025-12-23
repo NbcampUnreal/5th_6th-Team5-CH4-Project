@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
-#include "Engine/DataTable.h" // 데이터 테이블 필수 헤더
+#include "Engine/DataTable.h"
 #include "T5GameMode.generated.h"
 
 // [규칙서 양식] 엑셀 데이터 구조 정의
@@ -13,10 +13,10 @@ struct FCharacterStatRow : public FTableRowBase
 
 public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float BaseDamage; // 기본 공격력
+    float BaseDamage = 0.0f; // 기본 공격력
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float MaxHP;      // 최대 체력
+    float MaxHP = 100.0f;      // 최대 체력
 };
 
 UCLASS()
