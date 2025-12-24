@@ -75,7 +75,6 @@ void UTeam5_DamageTakenComponent::OnRep_IsAlive()
 {
 	if (!bIsAlive)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OnRep_IsAlive: Character Died!"));
 		if (OnDeathDelegate.IsBound())
 		{
 			OnDeathDelegate.Broadcast();
