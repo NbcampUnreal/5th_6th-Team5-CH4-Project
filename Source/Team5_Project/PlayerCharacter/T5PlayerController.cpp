@@ -2,13 +2,11 @@
 #include "T5GameMode/T5GameMode.h"
 #include "T5PlayerState.h"
 
+#include "Blueprint/UserWidget.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
-#include "EngineUtils.h"
 #include "TimerManager.h"
-#include "DrawDebugHelpers.h"
-
+#include "Engine/Engine.h"
 
 void AT5PlayerController::Client_SetRole_Implementation(EPlayerRole NewRole)
 {
@@ -18,9 +16,14 @@ void AT5PlayerController::Client_SetRole_Implementation(EPlayerRole NewRole)
     if (PS == nullptr || PS->GetPlayerId() == -1)
     {
         FTimerHandle WaitTimer;
-        GetWorld()->GetTimerManager().SetTimer(WaitTimer, [this, NewRole]() { Client_SetRole(NewRole); }, 0.1f, false);
-        return; 
+        GetWorld()->GetTimerManager().SetTimer(
+            WaitTimer,
+            [this, NewRole]() { Client_SetRole(NewRole); },
+            0.1f, false
+        );
+        return;
     }
+
     BP_OnRoleAssigned(NewRole);
 }
 
@@ -34,10 +37,9 @@ void AT5PlayerController::Client_PrivateMessage_Implementation(const FString& Ms
 
 void AT5PlayerController::Client_OnGameOver_Implementation(EWinningTeam Winner)
 {
-    // 1. 캐릭터 조작 정지
     if (APawn* MyPawn = GetPawn())
     {
-        MyPawn->DisableInput(this); // 입력 차단
+        MyPawn->DisableInput(this);
 
         if (ACharacter* MyChar = Cast<ACharacter>(MyPawn))
         {
@@ -49,11 +51,33 @@ void AT5PlayerController::Client_OnGameOver_Implementation(EWinningTeam Winner)
         }
     }
 
-    // 2. 마우스 커서 보이기
     bShowMouseCursor = true;
     SetInputMode(FInputModeUIOnly());
 
-    // 3. 결과 로그 (나중에 WBP_Result 위젯 띄우는 곳)
     FString WinStr = (Winner == EWinningTeam::Hunter) ? TEXT("술래 승리!") : TEXT("도망자 승리!");
     UE_LOG(LogTemp, Warning, TEXT(">>> [게임 종료] %s <<<"), *WinStr);
-};
+}
+
+void AT5PlayerController::Client_ShowDieUI_Implementation()
+{
+    if (!IsLocalController()) return;
+
+    if (DieWidgetInstance) return;
+
+    if (!DieWidgetClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Client_ShowDieUI] DieWidgetClass is null. Set it in BP_T5PlayerController Defaults."));
+        return;
+    }
+
+    DieWidgetInstance = CreateWidget<UUserWidget>(this, DieWidgetClass);
+    if (!DieWidgetInstance) return;
+
+    DieWidgetInstance->AddToViewport(200);
+
+    bShowMouseCursor = true;
+
+    FInputModeUIOnly Mode;
+    Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+    SetInputMode(Mode);
+}

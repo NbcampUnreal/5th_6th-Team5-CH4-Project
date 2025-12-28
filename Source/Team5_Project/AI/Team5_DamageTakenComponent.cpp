@@ -1,5 +1,7 @@
 #include "AI/Team5_DamageTakenComponent.h"
 
+#include "PlayerCharacter/T5PlayerController.h"
+
 #include "AIController.h"
 #include "BrainComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -32,11 +34,19 @@ void UTeam5_DamageTakenComponent::BeginPlay()
 	}
 }
 
-void UTeam5_DamageTakenComponent::OnDamageTaken(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
-                                                AController* InstigatedBy, AActor* DamageCauser)
+void UTeam5_DamageTakenComponent::OnDamageTaken(
+	AActor* DamagedActor,
+	float Damage,
+	const UDamageType* DamageType,
+	AController* InstigatedBy,
+	AActor* DamageCauser)
 {
-	CurrentHP = FMath::Max(0.f, CurrentHP - Damage);
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return;
+	}
 
+	CurrentHP = FMath::Max(0.f, CurrentHP - Damage);
 	UE_LOG(LogTemp, Warning, TEXT("[피격] HP: %.1f"), CurrentHP);
 
 	if (CurrentHP <= 0.0f)
@@ -47,13 +57,19 @@ void UTeam5_DamageTakenComponent::OnDamageTaken(AActor* DamagedActor, float Dama
 
 		APawn* MyPawn = Cast<APawn>(GetOwner());
 		if (!MyPawn) return;
-		
+
 		DeathCollision(MyPawn);
 
 		if (APlayerController* PlayerController = Cast<APlayerController>(MyPawn->GetController()))
 		{
 			PlayerController->StopMovement();
 			MyPawn->DisableInput(PlayerController);
+
+			// 플레이어라면 Die UI를 해당 클라이언트에게만 띄움
+			if (AT5PlayerController* T5PC = Cast<AT5PlayerController>(PlayerController))
+			{
+				T5PC->Client_ShowDieUI();
+			}
 		}
 		else if (AAIController* AIController = Cast<AAIController>(MyPawn->GetController()))
 		{
@@ -64,7 +80,8 @@ void UTeam5_DamageTakenComponent::OnDamageTaken(AActor* DamagedActor, float Dama
 			AIController->StopMovement();
 		}
 
-		if (GetOwner()->HasAuthority() && OnDeathDelegate.IsBound())
+		//  서버 기준으로 Death 이벤트 브로드캐스트
+		if (OnDeathDelegate.IsBound())
 		{
 			OnDeathDelegate.Broadcast();
 		}
@@ -73,6 +90,7 @@ void UTeam5_DamageTakenComponent::OnDamageTaken(AActor* DamagedActor, float Dama
 
 void UTeam5_DamageTakenComponent::OnRep_IsAlive()
 {
+	//  bIsAlive가 false로 동기화되었을 때 클라이언트에서도 Death 처리
 	if (!bIsAlive)
 	{
 		if (OnDeathDelegate.IsBound())
@@ -90,7 +108,7 @@ void UTeam5_DamageTakenComponent::DeathCollision(APawn* MyPawn)
 	{
 		CapsuleComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
-	
+
 	if (ACharacter* Character = Cast<ACharacter>(MyPawn))
 	{
 		if (USkeletalMeshComponent* MeshComp = Character->GetMesh())
