@@ -29,6 +29,8 @@ public:
 	UFUNCTION(BlueprintImplementableEvent)
 	void BP_OnRoleAssigned(EPlayerRole NewRole);
 
+	UFUNCTION(BlueprintCallable, Category="UI")
+	void Request_ExitToMainMenu();
 protected:
 	UPROPERTY(EditDefaultsOnly, Category="UI")
 	TSubclassOf<UUserWidget> DieWidgetClass;

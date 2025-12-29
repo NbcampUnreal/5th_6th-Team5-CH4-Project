@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TimerManager.h"
 #include "Engine/Engine.h"
+#include "Kismet/GameplayStatics.h"
 
 void AT5PlayerController::Client_SetRole_Implementation(EPlayerRole NewRole)
 {
@@ -80,4 +81,12 @@ void AT5PlayerController::Client_ShowDieUI_Implementation()
     FInputModeUIOnly Mode;
     Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
     SetInputMode(Mode);
+}
+
+void AT5PlayerController::Request_ExitToMainMenu()
+{
+    if (!IsLocalController()) return;
+
+    const FString MainMenuMap = TEXT("/Game/LJH_UI/MainmenuLevel");
+    ClientTravel(MainMenuMap, ETravelType::TRAVEL_Absolute);
 }
