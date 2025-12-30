@@ -163,39 +163,4 @@ private:
 
 	UFUNCTION()
 	void OnRep_Axe();
-protected:
-
-	UPROPERTY(EditDefaultsOnly, Category = "Sound")
-	USoundBase* FootstepLeftSound;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Sound")
-	USoundBase* FootstepRightSound;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Sound")
-	USoundBase* JumpStartSound;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Sound")
-	USoundBase* JumpLandSound;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Sound")
-	USoundBase* AttackHitSound;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Sound")
-	USoundBase* AttackMissSound;
-
-	bool IsHunter() const;
-
-	UFUNCTION(NetMulticast, Reliable)
-	void Multicast_PlaySound(USoundBase* Sound);
-
-	virtual void Landed(const FHitResult& Hit) override;
-	
-	virtual void OnJumped_Implementation() override;
-
-	UFUNCTION()
-	void HandleFootstepLeft();
-
-	UFUNCTION()
-	void HandleFootstepRight();
-
 };

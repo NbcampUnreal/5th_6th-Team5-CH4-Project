@@ -35,11 +35,7 @@ public:
 public:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "GameData")
 	EMatchState CurrentMatchState;
-
-	// [추가] 시작 전 카운트다운 (3, 2, 1...) - UI 표시용
-	UPROPERTY(Replicated, BlueprintReadOnly, Category = "GameData")
-	int32 StartCountdownTime;
-	
+    
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "GameData")
 	int32 RemainingTime;
 
