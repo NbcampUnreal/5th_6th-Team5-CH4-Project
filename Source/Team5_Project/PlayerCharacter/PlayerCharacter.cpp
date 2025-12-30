@@ -91,6 +91,12 @@ void APlayerCharacter::BeginPlay()
 	{
 		Anim->OnAttackStart.RemoveAll(this);
 		Anim->OnAttackStart.AddUObject(this, &APlayerCharacter::HandleAttackStartNotify);
+
+		Anim->OnSFX_Player_Footstep1.RemoveAll(this);
+		Anim->OnSFX_Player_Footstep1.AddUObject(this, &APlayerCharacter::HandleFootstepLeft);
+
+		Anim->OnSFX_Player_Footstep2.RemoveAll(this);
+		Anim->OnSFX_Player_Footstep2.AddUObject(this, &APlayerCharacter::HandleFootstepRight);
 	}
 
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
@@ -190,6 +196,13 @@ void APlayerCharacter::UpdateCharacterMesh(EPlayerRole NewRole)
 		{
 			Anim->OnAttackStart.RemoveAll(this);
 			Anim->OnAttackStart.AddUObject(this, &APlayerCharacter::HandleAttackStartNotify);
+
+			Anim->OnSFX_Player_Footstep1.RemoveAll(this);
+			Anim->OnSFX_Player_Footstep1.AddUObject(this, &APlayerCharacter::HandleFootstepLeft);
+
+			Anim->OnSFX_Player_Footstep2.RemoveAll(this);
+			Anim->OnSFX_Player_Footstep2.AddUObject(this, &APlayerCharacter::HandleFootstepRight);
+
 		}
 
 	}
@@ -291,8 +304,6 @@ void APlayerCharacter::Attack(const struct FInputActionValue& Value)
 		}
 	}
 
-	
-
 	const FRotator ControlRot = Controller->GetControlRotation();
 	AttackLockedYaw = ControlRot.Yaw;
 	bIsAttacking = true;
@@ -327,6 +338,19 @@ void APlayerCharacter::Server_Attack_Implementation(FVector Start, FVector Dir)
 	{
 		GM->ProcessAttack(GetController(), bHit ? Hit.GetActor() : nullptr);
 	}
+
+	if (IsHunter())
+	{
+		if (bHit)
+		{
+			Multicast_PlaySound(AttackHitSound);
+		}
+		else
+		{
+			Multicast_PlaySound(AttackMissSound);
+		}
+	}
+
 }
 
 bool APlayerCharacter::DoLineTrace(FHitResult& OutHit, FVector Start, FVector Dir) const
@@ -389,7 +413,6 @@ bool APlayerCharacter::DoLineTraceFromAxe(FHitResult& OutHit) const
 	FVector Dir = YawRot.Vector();
 
 	const FVector End = Start + Dir * TraceDistance;
-
 
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(AxeTrace), true);
 	Params.AddIgnoredActor(this);
@@ -499,5 +522,62 @@ void APlayerCharacter::Multicast_PlayAttackMontage_Implementation()
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Multicast] AnimInstance NULL Pawn=%s"), *GetName());
+	}
+}
+
+bool APlayerCharacter::IsHunter() const
+{
+	if (const AT5PlayerState* PS = GetPlayerState<AT5PlayerState>())
+	{
+		return PS->CurrentRole == EPlayerRole::Hunter;
+	}
+	return false;
+}
+
+void APlayerCharacter::Multicast_PlaySound_Implementation(USoundBase* Sound)
+{
+	if (!Sound) return;
+
+	UGameplayStatics::PlaySoundAtLocation(
+		this,
+		Sound,
+		GetActorLocation()
+	);
+}
+
+void APlayerCharacter::HandleFootstepLeft()
+{
+	if (!HasAuthority()) return;
+	if (!IsHunter()) return;
+
+	Multicast_PlaySound(FootstepLeftSound);
+}
+
+void APlayerCharacter::HandleFootstepRight()
+{
+	if (!HasAuthority()) return;
+	if (!IsHunter()) return;
+
+	Multicast_PlaySound(FootstepRightSound);
+}
+
+void APlayerCharacter::OnJumped_Implementation()
+{
+	Super::OnJumped_Implementation();
+
+	if (HasAuthority() && IsHunter())
+	{
+		Multicast_PlaySound(JumpStartSound);
+	}
+}
+
+
+void APlayerCharacter::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+
+	if (HasAuthority() && IsHunter())
+	{
+		Multicast_PlaySound(JumpLandSound);
 	}
 }
