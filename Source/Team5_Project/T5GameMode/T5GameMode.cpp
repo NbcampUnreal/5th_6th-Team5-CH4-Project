@@ -48,16 +48,27 @@ void AT5GameMode::StartCountdown()
 {
     if (bIsGameStarted) return;
     bIsGameStarted = true;
-    CurrentCountdown = 3; 
+    
+    // GameState 가져오기
+    AT5GameState* GS = GetGameState<AT5GameState>();
+    if (GS)
+    {
+        GS->StartCountdownTime = 3;
+    }
+
+    // 1초마다 OnCountdownTick 실행
     GetWorldTimerManager().SetTimer(TimerHandle_Countdown, this, &AT5GameMode::OnCountdownTick, 1.0f, true);
 }
 
 void AT5GameMode::OnCountdownTick()
 {
-    if (CurrentCountdown > 0)
+    AT5GameState* GS = GetGameState<AT5GameState>();
+    if (!GS) return;
+    
+    if (GS->StartCountdownTime > 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("게임 시작 %d초 전..."), CurrentCountdown);
-        CurrentCountdown--;
+        UE_LOG(LogTemp, Warning, TEXT("게임 시작 %d초 전..."), GS->StartCountdownTime);
+        GS->StartCountdownTime--;
     }
     else
     {
