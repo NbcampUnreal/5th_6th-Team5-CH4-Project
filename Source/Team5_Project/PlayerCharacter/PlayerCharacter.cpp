@@ -29,8 +29,7 @@ APlayerCharacter::APlayerCharacter()
 	bReplicates = true;
 
 	bUseControllerRotationYaw = false;
-
-	ConstructorHelpers::FObjectFinder<USkeletalMesh>PlayerMesh(TEXT(""));
+	
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
 	if (SpringArm)
